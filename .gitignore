@@ -1,0 +1,9 @@
+node_modules/
+dist/
+dist-electron/
+release/
+exports/
+*.db
+*.db-wal
+*.db-shm
+.DS_Store

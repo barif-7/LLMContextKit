@@ -1,0 +1,129 @@
+.root {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.titlebar {
+  height: 38px;
+  flex-shrink: 0;
+}
+
+.center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  gap: 8px;
+}
+
+.wordmark {
+  font-family: var(--font-display);
+  font-size: 42px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  color: var(--t1);
+  margin-bottom: 4px;
+}
+.wordmark span { color: var(--violet); }
+
+.tagline {
+  font-size: 15px;
+  color: var(--t2);
+  margin-bottom: 28px;
+}
+
+.dropZone {
+  width: 100%;
+  max-width: 480px;
+  border: 1.5px dashed var(--b3);
+  border-radius: var(--r-xl);
+  padding: 48px 36px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: var(--bg2);
+}
+.dropZone:hover, .dragOver {
+  border-color: var(--violet);
+  background: var(--violet-glow);
+}
+
+.fileInput {
+  display: none;
+}
+
+.dropIcon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 18px;
+  background: var(--bg4);
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--violet);
+  transition: background 0.2s;
+}
+.dropZone:hover .dropIcon { background: var(--violet-dim); }
+
+.dropZone h2 {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--t1);
+  margin-bottom: 6px;
+}
+.dropZone p { font-size: 14px; color: var(--t2); margin-bottom: 20px; }
+
+.error {
+  margin: -4px auto 18px;
+  max-width: 360px;
+  color: #ffb4a8;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.hint {
+  display: inline-block;
+  background: var(--bg4);
+  border: 1px solid var(--b1);
+  border-radius: 20px;
+  padding: 5px 14px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--t3);
+  letter-spacing: 0.2px;
+}
+
+.features {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  max-width: 480px;
+  width: 100%;
+  margin-top: 28px;
+}
+
+.feature {
+  background: var(--bg2);
+  border: 1px solid var(--b1);
+  border-radius: var(--r-lg);
+  padding: 14px 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.featureIcon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+
+.featureTitle {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--t1);
+  margin-bottom: 2px;
+}
+.featureDesc { font-size: 12px; color: var(--t3); }

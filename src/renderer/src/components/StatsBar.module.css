@@ -1,0 +1,41 @@
+.bar {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--b1);
+  background: var(--bg2);
+  gap: 0;
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+.bar::-webkit-scrollbar { display: none; }
+
+.stat {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 0 16px;
+}
+
+.sep {
+  width: 1px;
+  height: 14px;
+  background: var(--b1);
+  flex-shrink: 0;
+}
+
+.value {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--t2);
+}
+.label {
+  font-size: 11px;
+  color: var(--t4);
+  white-space: nowrap;
+}
+
+.amber { color: var(--amber); }
+.blue  { color: var(--blue); }
+.violet { color: var(--violet); }
