@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { width: 260px; padding: 12px; font: 13px/1.5 system-ui, sans-serif; margin: 0; color: #222; }
+  h3 { margin: 0 0 8px; font-size: 14px; }
+  .row { display: flex; justify-content: space-between; margin: 2px 0; }
+  .label { color: #666; }
+  .stale { color: #c33; font-weight: 600; }
+  button { width: 100%; margin-top: 10px; padding: 7px; font-size: 13px;
+    background: #4A90D9; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+  button:hover { background: #3a7bc8; }
+  button:disabled { background: #aaa; cursor: default; }
+  a { display: block; text-align: center; margin-top: 8px; font-size: 12px; color: #4A90D9; }
+  .error { color: #c33; font-size: 12px; margin-top: 6px; }
+</style>
+</head>
+<body>
+  <h3>historykit sync</h3>
+  <div class="row"><span class="label">Last sync</span><span id="last-sync">—</span></div>
+  <div class="row"><span class="label">Conversations</span><span id="conv-count">—</span></div>
+  <div class="row"><span class="label">Messages</span><span id="msg-count">—</span></div>
+  <div class="row"><span class="label">Freshness</span><span id="stale">—</span></div>
+  <div id="error-box" class="error" hidden></div>
+  <button id="sync-btn">Sync now</button>
+  <a href="http://127.0.0.1:8765/status" target="_blank">Open historykit status</a>
+<script>
+const btn = document.getElementById('sync-btn')
+const lastSyncEl = document.getElementById('last-sync')
+const convEl = document.getElementById('conv-count')
+const msgEl = document.getElementById('msg-count')
+const staleEl = document.getElementById('stale')
+const errorEl = document.getElementById('error-box')
+
+function ago(ts) {
+  if (!ts) return '—'
+  const mins = Math.floor((Date.now() - ts) / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return mins + 'm ago'
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return hrs + 'h ago'
+  return Math.floor(hrs / 24) + 'd ago'
+}
+
+async function refresh() {
+  chrome.storage.local.get(['last_sync_at', 'last_sync_result', 'last_sync_error'], (data) => {
+    lastSyncEl.textContent = ago(data.last_sync_at)
+    if (data.last_sync_result) {
+      convEl.textContent = String(data.last_sync_result.total ?? '—')
+    }
+    if (data.last_sync_error) {
+      errorEl.textContent = data.last_sync_error
+      errorEl.hidden = false
+    }
+  })
+  try {
+    const res = await fetch('http://127.0.0.1:8765/status')
+    const s = await res.json()
+    convEl.textContent = String(s.conversations)
+    msgEl.textContent = String(s.messages)
+    if (s.days_stale != null) {
+      staleEl.textContent = s.days_stale === 0 ? 'up to date' : s.days_stale + 'd stale'
+      if (s.days_stale > 2) staleEl.classList.add('stale')
+    }
+  } catch {
+    staleEl.textContent = 'server offline'
+    staleEl.classList.add('stale')
+  }
+}
+
+btn.addEventListener('click', () => {
+  btn.disabled = true
+  btn.textContent = 'Syncing...'
+  errorEl.hidden = true
+  chrome.runtime.sendMessage({ type: 'TRIGGER_SYNC' })
+  setTimeout(() => { btn.disabled = false; btn.textContent = 'Sync now' }, 3000)
+})
+
+refresh()
+</script>
+</body>
+</html>

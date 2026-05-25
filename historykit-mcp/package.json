@@ -10,11 +10,17 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "http": "node dist/http_server.js",
+    "migrate": "npm run build && node dist/migrate.js",
+    "index:embeddings": "npm run build && node dist/index_embeddings.js",
+    "semantic:update": "npm run build && node dist/migrate.js && node dist/index_embeddings.js",
+    "semantic:rebuild": "npm install && npm run build && node dist/migrate.js && node dist/index_embeddings.js --reset"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
-    "better-sqlite3": "^11.0.0"
+    "better-sqlite3": "^11.0.0",
+    "sqlite-vec": "^0.1.9"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.8",

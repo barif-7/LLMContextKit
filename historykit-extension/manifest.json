@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "historykit sync (personal)",
+  "version": "0.1.0",
+  "description": "Syncs ChatGPT conversations to local historykit. Personal use only.",
+  "permissions": ["storage", "alarms", "tabs", "scripting"],
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "http://127.0.0.1:8765/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://chatgpt.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "historykit sync",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "48": "icon.png"
+    }
+  }
+}
