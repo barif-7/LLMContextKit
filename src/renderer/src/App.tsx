@@ -6,12 +6,27 @@ import { DetailPanel } from './components/DetailPanel'
 import { ImportScreen } from './components/ImportScreen'
 import { StatsBar } from './components/StatsBar'
 import { McpPanel } from './components/McpPanel'
+import { BrowseView } from './components/BrowseView'
+import { ProfileView } from './components/ProfileView'
+import { ConversationView } from './components/ConversationView'
+import { SyncView } from './components/SyncView'
 import styles from './App.module.css'
 
-export type ViewFilter = 'all' | 'code' | 'images' | 'long' | 'user' | 'assistant' | 'branches'
+export type SearchScope = 'messages' | 'code' | 'files'
 export type SortOrder = 'newest' | 'oldest' | 'longest' | 'relevance'
 export type SourceFilter = 'all' | 'chatgpt' | 'claude'
-type AppMode = 'search' | 'mcp'
+export type AppView = 'search' | 'browse' | 'profile' | 'sync' | 'mcp'
+
+export interface SearchFlags {
+  restoreSearchResults: boolean
+  semanticSearchSuite: boolean
+}
+
+export interface SyncFlags {
+  browserExtensionChatGPT: boolean
+  nativeChatGPT: boolean
+  nativeClaude: boolean
+}
 
 export interface Message {
   id: string
@@ -31,6 +46,14 @@ export interface Message {
   source: SourceFilter
 }
 
+export interface FileSearchResult extends Message {
+  file_id: number
+  file_name: string | null
+  file_type: string | null
+  file_size: number | null
+  file_text: string
+}
+
 export interface Conversation {
   id: string
   title: string
@@ -45,6 +68,9 @@ export interface Stats {
   withCode: number
   withImages: number
   totalWords: number
+  withFiles: number
+  withLinks: number
+  withMemories: number
   bySource: {
     chatgpt: { messages: number; conversations: number }
     claude: { messages: number; conversations: number }
@@ -62,20 +88,31 @@ export default function App() {
   const [results, setResults] = useState<Message[]>([])
 
   const [query, setQuery] = useState('')
-  const [viewFilter, setViewFilter] = useState<ViewFilter>('all')
-  const [activeConvId, setActiveConvId] = useState<string | null>(null)
+  const [searchScope, setSearchScope] = useState<SearchScope>('messages')
   const [sort, setSort] = useState<SortOrder>('newest')
   const [activeBranchOnly, setActiveBranchOnly] = useState(true)
   const [source, setSource] = useState<SourceFilter>('all')
-  const [mode, setMode] = useState<AppMode>('search')
+  const [view, setView] = useState<AppView>('search')
 
   const [selectedMsg, setSelectedMsg] = useState<Message | null>(null)
+  const [activeConvId, setActiveConvId] = useState<string | null>(null)
+  const [viewingConvId, setViewingConvId] = useState<string | null>(null)
+  const [searchFlags, setSearchFlags] = useState<SearchFlags>({
+    restoreSearchResults: true,
+    semanticSearchSuite: false,
+  })
+
+  // Code search state
+  const [codeResults, setCodeResults] = useState<any[]>([])
+  const [fileResults, setFileResults] = useState<FileSearchResult[]>([])
+  const [codeLangs, setCodeLangs] = useState<Array<{ lang: string; count: number }>>([])
+  const [selectedLang, setSelectedLang] = useState<string | null>(null)
 
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>()
 
-  // ── Load data on mount ───────────────────────────────────────────────────
   useEffect(() => {
     checkForData()
+    window.api.searchFlags().then(setSearchFlags).catch(() => {})
   }, [])
 
   async function checkForData() {
@@ -84,8 +121,16 @@ export default function App() {
       setStats(s)
       setHasData(true)
       loadConversations()
-      doSearch({ q: '', view: 'all', convId: null, sort: 'newest', activeBranchOnly: true, source: 'all' })
+      doSearch({ q: '', sort: 'newest', activeBranchOnly: true, source: 'all' })
     }
+  }
+
+  async function refreshData() {
+    const s = await window.api.stats()
+    setStats(s)
+    setHasData(s.messages > 0)
+    loadConversations()
+    doSearch({ q: query, sort, activeBranchOnly, source, convId: activeConvId })
   }
 
   async function loadConversations() {
@@ -93,7 +138,6 @@ export default function App() {
     setConversations(convs)
   }
 
-  // ── Import ────────────────────────────────────────────────────────────────
   async function handleImport(filePath?: string) {
     setImportError(null)
     let path = filePath
@@ -110,12 +154,36 @@ export default function App() {
         const s = await window.api.stats()
         setStats(s)
         loadConversations()
-        doSearch({ q: query, view: viewFilter, convId: activeConvId, sort, activeBranchOnly, source })
+        doSearch({ q: query, sort, activeBranchOnly, source })
       } else {
         setImportError(result.error || 'Import failed.')
       }
     } catch (err: any) {
       setImportError(err?.message || 'Import failed.')
+    } finally {
+      cleanup()
+      setImporting(false)
+    }
+  }
+
+  async function handleMergeImport() {
+    setImportError(null)
+    const paths = await window.api.openFileForMerge()
+    if (!paths || paths.length === 0) return
+    setImporting(true)
+    const cleanup = window.api.onImportProgress((p: any) => setImportProgress(p))
+    try {
+      const result = await window.api.mergeImport(paths)
+      if (result.ok) {
+        const s = await window.api.stats()
+        setStats(s)
+        loadConversations()
+        doSearch({ q: query, sort, activeBranchOnly, source })
+      } else {
+        setImportError(result.error || 'Merge failed.')
+      }
+    } catch (err: any) {
+      setImportError(err?.message || 'Merge failed.')
     } finally {
       cleanup()
       setImporting(false)
@@ -128,7 +196,6 @@ export default function App() {
       setImportError('Choose a JSON file exported from ChatGPT or Claude.')
       return
     }
-
     const filePath = window.api.getPathForFile(file) || (file as any).path
     if (filePath) {
       handleImport(filePath)
@@ -137,41 +204,50 @@ export default function App() {
     }
   }
 
-  // ── Search ────────────────────────────────────────────────────────────────
+  // Message search
   const doSearch = useCallback(async (params: {
-    q: string; view: ViewFilter; convId: string | null; sort: SortOrder; activeBranchOnly: boolean; source: SourceFilter
+    q: string; sort: SortOrder; activeBranchOnly: boolean; source: SourceFilter; convId?: string | null
   }) => {
-    const { q, view, convId, sort, activeBranchOnly, source } = params
     const searchParams: any = {
-      query: q || undefined,
-      convId: convId || undefined,
-      sort,
-      activeBranchOnly,
-      source,
+      query: params.q || undefined,
+      sort: params.sort,
+      activeBranchOnly: params.activeBranchOnly,
+      source: params.source,
+      convId: params.convId || undefined,
     }
-    if (view === 'code') searchParams.hasCode = true
-    else if (view === 'images') searchParams.hasImage = true
-    else if (view === 'long') searchParams.isLong = true
-    else if (view === 'user') searchParams.role = 'user'
-    else if (view === 'assistant') searchParams.role = 'assistant'
-    else if (view === 'branches') searchParams.activeBranchOnly = false
-
     const rows = await window.api.search(searchParams)
     setResults(rows)
   }, [])
 
-  function triggerSearch(overrides?: Partial<{ q: string; view: ViewFilter; convId: string | null; sort: SortOrder; activeBranchOnly: boolean; source: SourceFilter }>) {
-    clearTimeout(searchTimeout.current)
-    const params = {
-      q: query,
-      view: viewFilter,
-      convId: activeConvId,
-      sort,
-      activeBranchOnly,
-      source,
-      ...overrides,
+  // Code search
+  const doCodeSearch = useCallback(async (q: string, lang: string | null) => {
+    const params: CodeSearchParams = { query: q || undefined, limit: 51 }
+    if (lang) params.langs = [lang]
+    const rows = await window.api.searchCodeBlocks(params)
+    setCodeResults(rows)
+  }, [])
+
+  const doFileSearch = useCallback(async (q: string) => {
+    if (!q.trim()) {
+      setFileResults([])
+      return
     }
-    searchTimeout.current = setTimeout(() => doSearch(params), overrides?.q !== undefined ? 120 : 0)
+    const rows = await window.api.searchFiles({ query: q, limit: 200 })
+    setFileResults(rows)
+  }, [])
+
+  function triggerSearch(overrides?: Partial<{ q: string; sort: SortOrder; activeBranchOnly: boolean; source: SourceFilter; convId: string | null }>) {
+    clearTimeout(searchTimeout.current)
+    const params = { q: query, sort, activeBranchOnly, source, convId: activeConvId, ...overrides }
+    searchTimeout.current = setTimeout(() => {
+      if (searchScope === 'code') {
+        doCodeSearch(params.q, selectedLang)
+      } else if (searchScope === 'files') {
+        doFileSearch(params.q)
+      } else {
+        doSearch(params)
+      }
+    }, overrides?.q !== undefined ? 120 : 0)
   }
 
   function onQueryChange(q: string) {
@@ -179,24 +255,21 @@ export default function App() {
     triggerSearch({ q })
   }
 
-  function onViewChange(v: ViewFilter) {
-    setMode('search')
-    setViewFilter(v)
-    setActiveConvId(null)
-    triggerSearch({ view: v, convId: null })
+  function onSearchScopeChange(scope: SearchScope) {
+    setSearchScope(scope)
+    if (scope === 'code') {
+      if (codeLangs.length === 0) window.api.codeLangs().then(setCodeLangs)
+      doCodeSearch(query, selectedLang)
+    } else if (scope === 'files') {
+      doFileSearch(query)
+    } else {
+      doSearch({ q: query, sort, activeBranchOnly, source })
+    }
   }
 
-  function onConvSelect(id: string | null) {
-    setMode('search')
-    setActiveConvId(id)
-    setSelectedMsg(null)
-    if (id) {
-      setQuery('')
-      setViewFilter('all')
-      doSearch({ q: '', view: 'all', convId: id, sort, activeBranchOnly, source })
-    } else {
-      triggerSearch({ convId: null })
-    }
+  function onLangChange(lang: string | null) {
+    setSelectedLang(lang)
+    doCodeSearch(query, lang)
   }
 
   function onSortChange(s: SortOrder) {
@@ -215,13 +288,18 @@ export default function App() {
     triggerSearch({ activeBranchOnly: next })
   }
 
-  function onMcpSelect() {
-    setMode('mcp')
+  function onViewChange(v: AppView) {
+    setView(v)
+    setSelectedMsg(null)
     setActiveConvId(null)
+    setViewingConvId(null)
+  }
+
+  function onConvSelect(id: string) {
+    setViewingConvId(id)
     setSelectedMsg(null)
   }
 
-  // ── Drag and drop on main window ─────────────────────────────────────────
   function onDrop(e: React.DragEvent) {
     e.preventDefault()
     setImportError(null)
@@ -258,51 +336,100 @@ export default function App() {
 
   return (
     <div className={styles.root} onDragOver={e => e.preventDefault()} onDrop={onDrop}>
-      {/* Titlebar drag region */}
       <div className={`${styles.titlebar} drag-region`} />
 
       <div className={styles.layout}>
         <Sidebar
-          conversations={conversations}
-          activeConvId={activeConvId}
-          activeView={viewFilter}
+          activeView={view}
           stats={stats}
-          onConvSelect={onConvSelect}
           onViewChange={onViewChange}
           onReimport={() => handleImport()}
-          onMcpSelect={onMcpSelect}
-          mcpActive={mode === 'mcp'}
+          onMergeImport={handleMergeImport}
         />
 
-        {mode === 'mcp' ? (
+        {viewingConvId ? (
+          <ConversationView
+            convId={viewingConvId}
+            onBack={() => setViewingConvId(null)}
+          />
+        ) : view === 'mcp' ? (
           <McpPanel />
+        ) : view === 'sync' ? (
+          <SyncView onSynced={refreshData} />
+        ) : view === 'browse' ? (
+          <BrowseView
+            conversations={conversations}
+            onConvSelect={onConvSelect}
+          />
+        ) : view === 'profile' ? (
+          <ProfileView onConvSelect={onConvSelect} />
         ) : (
           <div className={styles.content}>
             <SearchBar
               query={query}
               onQueryChange={onQueryChange}
+              searchScope={searchScope}
+              onSearchScopeChange={onSearchScopeChange}
               sort={sort}
               onSortChange={onSortChange}
               source={source}
               onSourceChange={onSourceChange}
               activeBranchOnly={activeBranchOnly}
               onBranchToggle={onBranchToggle}
-              resultCount={results.length}
+              resultCount={searchScope === 'code' ? codeResults.length : searchScope === 'files' ? fileResults.length : results.length}
+              codeLangs={codeLangs}
+              selectedLang={selectedLang}
+              onLangChange={onLangChange}
+              activeConvId={activeConvId}
+              onClearConv={() => { setActiveConvId(null); triggerSearch({ convId: null }) }}
+              showFilesScope={searchFlags.restoreSearchResults}
             />
-            {stats && <StatsBar stats={stats} />}
-            <ResultsList
-              results={results}
-              query={query}
-              onSelect={setSelectedMsg}
-              selectedId={selectedMsg?.id}
-            />
+            {stats && <StatsBar stats={stats} onNavigate={onViewChange} />}
+            {searchScope === 'code' ? (
+              <ResultsList
+                results={[]}
+                fileResults={[]}
+                codeResults={codeResults}
+                query={query}
+                onSelect={setSelectedMsg}
+                onFileSelect={setSelectedMsg as any}
+                onConvOpen={onConvSelect}
+                selectedId={selectedMsg?.id}
+                searchScope="code"
+              />
+            ) : searchScope === 'files' ? (
+              <ResultsList
+                results={[]}
+                fileResults={fileResults}
+                codeResults={[]}
+                query={query}
+                onSelect={setSelectedMsg}
+                onFileSelect={setSelectedMsg as any}
+                onConvOpen={onConvSelect}
+                selectedId={selectedMsg?.id}
+                searchScope="files"
+              />
+            ) : (
+              <ResultsList
+                results={results}
+                fileResults={[]}
+                codeResults={[]}
+                query={query}
+                onSelect={setSelectedMsg}
+                onFileSelect={setSelectedMsg as any}
+                onConvOpen={onConvSelect}
+                selectedId={selectedMsg?.id}
+                searchScope="messages"
+              />
+            )}
           </div>
         )}
 
-        {mode === 'search' && selectedMsg && (
+        {view === 'search' && !viewingConvId && selectedMsg && (
           <DetailPanel
             message={selectedMsg}
             onClose={() => setSelectedMsg(null)}
+            onConvOpen={onConvSelect}
           />
         )}
       </div>

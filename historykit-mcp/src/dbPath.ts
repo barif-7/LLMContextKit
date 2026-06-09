@@ -9,8 +9,9 @@ export function resolveDbPath(): string {
   const candidates: string[] = []
 
   if (process.platform === 'darwin') {
-    candidates.push(path.join(home, 'Library', 'Application Support', 'HistoryKit', 'historykit.db'))
+    // Electron's app userData path for this project is the lowercase app id.
     candidates.push(path.join(home, 'Library', 'Application Support', 'historykit', 'historykit.db'))
+    candidates.push(path.join(home, 'Library', 'Application Support', 'HistoryKit', 'historykit.db'))
   } else if (process.platform === 'win32') {
     candidates.push(path.join(home, 'AppData', 'Roaming', 'HistoryKit', 'historykit.db'))
   } else {

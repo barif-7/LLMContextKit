@@ -36,6 +36,11 @@
   white-space: nowrap;
 }
 
-.amber { color: var(--amber); }
-.blue  { color: var(--blue); }
+.amber  { color: var(--amber); }
+.blue   { color: var(--blue); }
 .violet { color: var(--violet); }
+.teal   { color: var(--teal, #2dd4bf); }
+.green  { color: var(--green, #4ade80); }
+
+.clickable { cursor: pointer; }
+.clickable:hover .label { color: var(--t2); }

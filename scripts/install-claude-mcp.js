@@ -18,6 +18,15 @@ if (platform === 'darwin') {
 }
 
 const serverPath = path.resolve(__dirname, '..', 'historykit-mcp', 'dist', 'index.js');
+const node22Path = path.join(os.homedir(), '.nvm', 'versions', 'node', 'v22.22.3', 'bin', 'node');
+const nodeCommand = process.env.HISTORYKIT_NODE_BIN || (fs.existsSync(node22Path) ? node22Path : process.execPath);
+const dbPath = process.env.HISTORYKIT_DB_PATH || (
+  platform === 'darwin'
+    ? path.join(os.homedir(), 'Library', 'Application Support', 'historykit', 'historykit.db')
+    : platform === 'win32'
+      ? path.join(os.homedir(), 'AppData', 'Roaming', 'HistoryKit', 'historykit.db')
+      : path.join(os.homedir(), '.config', 'HistoryKit', 'historykit.db')
+);
 
 if (!fs.existsSync(serverPath)) {
   console.error('MCP server not built. Run: npm run mcp:build');
@@ -30,8 +39,11 @@ if (fs.existsSync(configPath)) {
 }
 config.mcpServers = config.mcpServers || {};
 config.mcpServers.historykit = {
-  command: 'node',
+  command: nodeCommand,
   args: [serverPath],
+  env: {
+    HISTORYKIT_DB_PATH: dbPath,
+  },
 };
 
 fs.mkdirSync(path.dirname(configPath), { recursive: true });

@@ -7,6 +7,9 @@
  */
 
 import type Database from 'better-sqlite3'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import { getEmbeddingConfig, ollamaEmbed, quoteIdentifier } from './vec.js'
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -41,6 +44,8 @@ function ftsQuery(q: string): string {
 }
 
 type DateRange = { start?: number; end?: number; startDate?: string; endDate?: string }
+type ProjectConfig = { aliases: string[]; repo?: string }
+type ProjectRegistry = Record<string, ProjectConfig>
 
 function parseDate(value: unknown, endOfDay = false): number | null {
   if (typeof value !== 'string' || !value.trim()) return null
@@ -115,6 +120,54 @@ function tableExists(db: Database.Database, name: string): boolean {
   return !!db.prepare(`SELECT 1 FROM sqlite_master WHERE name = ?`).get(name)
 }
 
+function loadProjectRegistry(): ProjectRegistry {
+  const here = path.dirname(fileURLToPath(import.meta.url))
+  const candidates = [
+    path.join(here, 'projects.json'),
+    path.join(here, '..', 'src', 'projects.json'),
+  ]
+  const registryPath = candidates.find(candidate => fs.existsSync(candidate)) ?? candidates[0]
+
+  let raw: string
+  try {
+    raw = fs.readFileSync(registryPath, 'utf8')
+  } catch (err: any) {
+    throw new Error(`Failed to read project registry at ${registryPath}: ${err.message}`)
+  }
+
+  let parsed: any
+  try {
+    parsed = JSON.parse(raw)
+  } catch (err: any) {
+    throw new Error(`Malformed project registry JSON at ${registryPath}: ${err.message}`)
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(`Malformed project registry JSON at ${registryPath}: expected an object`)
+  }
+
+  const registry: ProjectRegistry = {}
+  for (const [name, value] of Object.entries(parsed)) {
+    if (name.startsWith('_')) continue
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new Error(`Malformed project registry JSON at ${registryPath}: ${name} must be an object`)
+    }
+    const aliases = (value as any).aliases
+    const repo = (value as any).repo
+    if (!Array.isArray(aliases) || !aliases.every(alias => typeof alias === 'string')) {
+      throw new Error(`Malformed project registry JSON at ${registryPath}: ${name}.aliases must be a string array`)
+    }
+    if (repo !== undefined && typeof repo !== 'string') {
+      throw new Error(`Malformed project registry JSON at ${registryPath}: ${name}.repo must be a string`)
+    }
+    registry[name] = { aliases, ...(repo ? { repo } : {}) }
+  }
+
+  return registry
+}
+
+const projectRegistry = loadProjectRegistry()
+
 // ── Tool definitions ─────────────────────────────────────────────────────
 
 export const toolDefinitions = [
@@ -131,6 +184,7 @@ export const toolDefinitions = [
         source: { type: 'string', enum: ['chatgpt', 'claude', 'any'], description: 'Filter by source export (default: any)' },
         start_date: { type: 'string', description: 'Optional ISO date lower bound, inclusive (YYYY-MM-DD)' },
         end_date: { type: 'string', description: 'Optional ISO date upper bound, inclusive (YYYY-MM-DD)' },
+        boost_with_memories: { type: 'boolean', description: 'Boost results that relate to stored ChatGPT memories (default false)' },
       },
       required: ['query'],
     },
@@ -224,10 +278,99 @@ export const toolDefinitions = [
     },
   },
   {
+    name: 'search_links',
+    description:
+      'Search URLs extracted from conversation messages. Filter by domain to find links the user shared or received. Useful for "what was that link to…", "sites I referenced", or finding resources mentioned in past conversations.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        domain: { type: 'string', description: 'Filter by domain substring (e.g. "github", "stackoverflow.com")' },
+        query: { type: 'string', description: 'Filter by URL or surrounding message text' },
+        limit: { type: 'number', description: 'Max results (default 25, max 100)' },
+        start_date: { type: 'string', description: 'Optional ISO date lower bound, inclusive (YYYY-MM-DD)' },
+        end_date: { type: 'string', description: 'Optional ISO date upper bound, inclusive (YYYY-MM-DD)' },
+      },
+    },
+  },
+  {
+    name: 'list_memories',
+    description:
+      'List ChatGPT memory entries — things the user explicitly saved to ChatGPT\'s memory via the bio tool. Useful for understanding user preferences, background, or facts they wanted ChatGPT to remember.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Filter memories by text content' },
+        limit: { type: 'number', description: 'Max results (default 50, max 200)' },
+      },
+    },
+  },
+  {
+    name: 'search_attachments',
+    description:
+      'Search file and image attachments from conversations. Returns metadata about files the user uploaded or images in conversations. Filter by type (image/file) or search by file name.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        type: { type: 'string', enum: ['image', 'file', 'any'], description: 'Filter by attachment type (default: any)' },
+        query: { type: 'string', description: 'Search by file name or surrounding message text' },
+        limit: { type: 'number', description: 'Max results (default 25, max 100)' },
+        start_date: { type: 'string', description: 'Optional ISO date lower bound, inclusive (YYYY-MM-DD)' },
+        end_date: { type: 'string', description: 'Optional ISO date upper bound, inclusive (YYYY-MM-DD)' },
+      },
+    },
+  },
+  {
     name: 'get_stats',
     description:
-      'Return summary statistics about the indexed history: total conversations, messages, code blocks, date range, languages used. Use this to give the user a sense of what is searchable.',
+      'Return summary statistics about the indexed history: total conversations, messages, code blocks, links, attachments, memories, date range, languages used. Use this to give the user a sense of what is searchable.',
     inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'get_context_pack',
+    description:
+      'Generate a source-backed context pack (architecture, decisions, open loops, code) for one indexed project. Citations resolve to conv_id#message_id. Sections with no indexed support are marked [not in index].',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project: { type: 'string', description: 'Project key from historykit-mcp/src/projects.json' },
+      },
+      required: ['project'],
+    },
+  },
+  {
+    name: 'memory_timeline',
+    description:
+      'Chronological timeline of ChatGPT memories showing when each was created and which conversation it came from. Use this to understand how ChatGPT\'s knowledge about the user evolved over time.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        group_by: { type: 'string', enum: ['month', 'week', 'day'], description: 'Group memories by time period (default: month)' },
+        limit: { type: 'number', description: 'Max memories to return (default 200, max 500)' },
+      },
+    },
+  },
+  {
+    name: 'memory_conflicts',
+    description:
+      'Find memories that may contradict or duplicate each other. Useful for auditing what ChatGPT thinks it knows — contradictions lead to inconsistent behavior.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        similarity_threshold: { type: 'number', description: 'Jaccard similarity threshold for duplicate detection (0-1, default 0.5)' },
+      },
+    },
+  },
+  {
+    name: 'export_memories',
+    description:
+      'Export all ChatGPT memories as a portable list for review, backup, or transfer to another AI system.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        format: { type: 'string', enum: ['list', 'markdown', 'json'], description: 'Output format (default: list)' },
+        include_source: { type: 'boolean', description: 'Include originating conversation info (default false)' },
+      },
+    },
   },
 ]
 
@@ -245,7 +388,14 @@ export async function executeTool(
     case 'get_conversation':     return getConversation(args, db)
     case 'get_recent':           return getRecent(args, db)
     case 'list_conversations':   return listConversations(args, db)
+    case 'search_links':         return searchLinks(args, db)
+    case 'list_memories':        return listMemories(args, db)
+    case 'search_attachments':   return searchAttachments(args, db)
     case 'get_stats':            return getStats(db)
+    case 'get_context_pack':      return getContextPack(args, db)
+    case 'memory_timeline':      return memoryTimeline(args, db)
+    case 'memory_conflicts':     return memoryConflicts(args, db)
+    case 'export_memories':      return exportMemories(args, db)
     default: throw new Error(`Unknown tool: ${name}`)
   }
 }
@@ -263,6 +413,7 @@ type SearchHit = {
   word_count: number
   has_code: boolean
   has_image: boolean
+  code_langs: string | null
   text: string
   snippet: string
 }
@@ -294,7 +445,7 @@ function ftsSearchRows(
   addTimestampFilters(conditions, params, options.dateRange ?? {})
 
   const sql = `
-    SELECT m.id, m.conv_id, m.role, m.text, m.word_count, m.has_code, m.has_image, m.source,
+    SELECT m.id, m.conv_id, m.role, m.text, m.word_count, m.has_code, m.has_image, m.code_langs, m.source,
            m.create_time, c.title as conv_title
     FROM messages m
     JOIN conversations c ON c.id = m.conv_id
@@ -317,9 +468,158 @@ function ftsSearchRows(
     word_count: r.word_count,
     has_code: !!r.has_code,
     has_image: !!r.has_image,
+    code_langs: r.code_langs ?? null,
     text: r.text,
     snippet: snippetAround(r.text, query, 240),
   }))
+}
+
+// ── get_context_pack ─────────────────────────────────────────────────────
+
+type ContextPackHit = SearchHit & { tag: string }
+
+const DECISION_RE = /\b(use|chose|decided|instead of|switch(?:ed)? to|prefer|drop(?:ped)?|source of truth)\b/i
+
+function knownProjectNames(): string[] {
+  return Object.keys(projectRegistry).sort()
+}
+
+function assertStableMessageIdsAvailable(db: Database.Database): void {
+  const columns = db.prepare('PRAGMA table_info(messages)').all() as Array<{ name: string; pk: number }>
+  const idColumn = columns.find(column => column.name === 'id')
+  if (!idColumn) {
+    throw new Error('Cannot generate context pack: messages.id column is missing, so citations cannot resolve.')
+  }
+}
+
+function citationTag(hit: SearchHit, used: Set<string>): string {
+  const conv = hit.conv_id.replace(/[^a-z0-9]/gi, '').slice(0, 4) || 'conv'
+  const msg = hit.message_id.replace(/[^a-z0-9]/gi, '').slice(0, 4) || 'msg'
+  const base = `${conv}#${msg}`
+  let tag = base
+  let i = 2
+  while (used.has(tag)) {
+    tag = `${base}-${i}`
+    i += 1
+  }
+  used.add(tag)
+  return tag
+}
+
+function cleanContextLine(text: string, max = 260): string {
+  return truncate(text.replace(/\s+/g, ' ').replace(/[\[\]]/g, '').replace(/\|/g, '/').trim(), max)
+}
+
+function selectGeneralBuckets(general: ContextPackHit[]): { what: ContextPackHit[]; state: ContextPackHit[] } {
+  const whatCount = Math.min(6, Math.ceil(general.length / 2))
+  return {
+    what: general.slice(0, whatCount),
+    state: general.slice(whatCount, whatCount + 6),
+  }
+}
+
+function renderBucket(hits: ContextPackHit[], options: { code?: boolean } = {}): string {
+  if (hits.length === 0) return '**[not in index]**'
+
+  return hits.map(hit => {
+    const text = cleanContextLine(hit.snippet || hit.text)
+    if (options.code) {
+      const langs = hit.code_langs ? ` (${hit.code_langs})` : ''
+      return `- ${text}${langs} [${hit.tag}]`
+    }
+    return `- ${text} [${hit.tag}]`
+  }).join('\n')
+}
+
+function renderSources(hits: ContextPackHit[]): string {
+  if (hits.length === 0) return '**[not in index]**'
+
+  const rows = [
+    '| Tag | Source |',
+    '| --- | --- |',
+    ...hits.map(hit => `| [${hit.tag}] | ${cleanContextLine(hit.conv_title || 'Untitled', 100)} - ${hit.conv_id}#${hit.message_id} - ${hit.date} |`),
+  ]
+  return rows.join('\n')
+}
+
+function getContextPack(args: any, db: Database.Database): string {
+  const project = typeof args.project === 'string' ? args.project.trim() : ''
+  if (!project) return JSON.stringify({ error: 'project is required', known_projects: knownProjectNames() }, null, 2)
+
+  const config = projectRegistry[project]
+  if (!config) {
+    return JSON.stringify({
+      error: `Unknown project: ${project}`,
+      known_projects: knownProjectNames(),
+      next_step: 'Add the project and its aliases to historykit-mcp/src/projects.json.',
+    }, null, 2)
+  }
+
+  assertStableMessageIdsAvailable(db)
+
+  const terms = [project, ...config.aliases].map(term => term.trim()).filter(Boolean)
+  const byMessageId = new Map<string, SearchHit>()
+
+  // TODO(v1.2): semantic retrieval
+  for (const term of terms) {
+    for (const hit of ftsSearchRows(db, term, 40)) {
+      if (!hit.message_id) {
+        throw new Error('Cannot generate context pack: an FTS result is missing messages.id, so citations cannot resolve.')
+      }
+      const existing = byMessageId.get(hit.message_id)
+      if (!existing || (hit.create_time ?? 0) > (existing.create_time ?? 0)) {
+        byMessageId.set(hit.message_id, hit)
+      }
+    }
+  }
+
+  const usedTags = new Set<string>()
+  const hits: ContextPackHit[] = [...byMessageId.values()]
+    .sort((a, b) => (b.create_time ?? 0) - (a.create_time ?? 0))
+    .slice(0, 40)
+    .map(hit => ({ ...hit, tag: citationTag(hit, usedTags) }))
+
+  const codeMessages = hits.filter(hit => hit.has_code)
+  const decisionCandidates = hits.filter(hit => DECISION_RE.test(hit.text))
+  const decisionIds = new Set(decisionCandidates.map(hit => hit.message_id))
+  const codeIds = new Set(codeMessages.map(hit => hit.message_id))
+  const general = hits.filter(hit => !decisionIds.has(hit.message_id) && !codeIds.has(hit.message_id))
+  const { what, state } = selectGeneralBuckets(general)
+
+  const usedSourceIds = new Set<string>()
+  const usedSources: ContextPackHit[] = []
+  for (const hit of [...what, ...state, ...decisionCandidates, ...codeMessages]) {
+    if (usedSourceIds.has(hit.message_id)) continue
+    usedSourceIds.add(hit.message_id)
+    usedSources.push(hit)
+  }
+
+  const matchedConversations = new Set(hits.map(hit => hit.conv_id)).size
+  const repo = config.repo ?? '[not configured]'
+  const metadata = `Generated ${new Date().toISOString()} | Source: HistoryKit SQLite FTS5 index | ${matchedConversations} conversations matched | Repo: ${repo}`
+
+  return [
+    `# Context Pack: ${project}`,
+    metadata,
+    '',
+    '## What this is',
+    renderBucket(what),
+    '',
+    '## Current state',
+    renderBucket(state),
+    '',
+    '## Key decisions',
+    renderBucket(decisionCandidates),
+    '',
+    '## Open loops',
+    '**[not in index]**',
+    '',
+    '## Relevant code',
+    renderBucket(codeMessages, { code: true }),
+    '',
+    '## Sources',
+    renderSources(usedSources),
+  ].join('\n')
 }
 
 function searchConversations(args: any, db: Database.Database): string {
@@ -328,20 +628,60 @@ function searchConversations(args: any, db: Database.Database): string {
   const role: string = args.role ?? 'any'
   const source: string = args.source ?? 'any'
   const dateRange = readDateRange(args)
+  const boostWithMemories: boolean = !!args.boost_with_memories
 
   if (!query.trim()) return JSON.stringify({ error: 'query is required' })
 
-  const results = ftsSearchRows(db, query, limit, { role, source, dateRange })
+  let fetchLimit = limit
+  let memoryBoostApplied = false
+
+  if (boostWithMemories && tableExists(db, 'memories')) {
+    fetchLimit = Math.min(limit * 3, 150)
+  }
+
+  const results = ftsSearchRows(db, query, fetchLimit, { role, source, dateRange })
   if (results.length === 0 && !ftsQuery(query)) {
     return JSON.stringify({ results: [], note: 'query produced no searchable tokens' })
   }
 
+  let finalResults = results
+  if (boostWithMemories && tableExists(db, 'memories')) {
+    const memRows = db.prepare('SELECT text FROM memories').all() as Array<{ text: string }>
+    const memoryKeywords = new Set<string>()
+    for (const row of memRows) {
+      for (const word of row.text.toLowerCase().split(/\s+/)) {
+        if (word.length >= 4) memoryKeywords.add(word)
+      }
+    }
+
+    if (memoryKeywords.size > 0) {
+      memoryBoostApplied = true
+      const scored = results.map((hit, rank) => {
+        const words = hit.text.toLowerCase().split(/\s+/)
+        const matchCount = words.filter(w => memoryKeywords.has(w)).length
+        const boostScore = matchCount / Math.max(words.length, 1)
+        return { hit, originalRank: rank, boostScore }
+      })
+
+      scored.sort((a, b) => {
+        const scoreA = 1 / (60 + a.originalRank + 1) + a.boostScore * 0.02
+        const scoreB = 1 / (60 + b.originalRank + 1) + b.boostScore * 0.02
+        return scoreB - scoreA
+      })
+
+      finalResults = scored.slice(0, limit).map(s => s.hit)
+    }
+  }
+
+  finalResults = finalResults.slice(0, limit)
+
   return JSON.stringify({
     query,
     date_range: dateRangeResponse(dateRange),
-    result_count: results.length,
-    results: results.map(({ text, create_time, ...result }) => result),
-    next_step: results.length > 0
+    memory_boost_applied: memoryBoostApplied || undefined,
+    result_count: finalResults.length,
+    results: finalResults.map(({ text, create_time, ...result }) => result),
+    next_step: finalResults.length > 0
       ? 'Call get_conversation with conv_id to retrieve full thread for any of these.'
       : 'No matches. Try broader query or use list_conversations to browse.',
   }, null, 2)
@@ -470,7 +810,7 @@ function vectorSearchRows(
 
   const rows = db.prepare(`
     SELECT v.message_id, v.distance, e.conversation_id, e.role, e.date, e.source, e.text_preview,
-           m.text, m.word_count, m.has_code, m.has_image, m.create_time, c.title as conv_title
+           m.text, m.word_count, m.has_code, m.has_image, m.code_langs, m.create_time, c.title as conv_title
     FROM ${quoteIdentifier(config.vectorTable)} v
     JOIN message_embeddings e ON e.message_id = v.message_id
     JOIN messages m ON m.id = v.message_id
@@ -490,6 +830,7 @@ function vectorSearchRows(
     word_count: r.word_count,
     has_code: !!r.has_code,
     has_image: !!r.has_image,
+    code_langs: r.code_langs ?? null,
     text: r.text,
     snippet: snippetAround(r.text || r.text_preview, options.query ?? '', 240),
     vector_distance: r.distance,
@@ -580,7 +921,19 @@ function getConversation(args: any, db: Database.Database): string {
     LIMIT ?
   `).all(conv_id, max) as any[]
 
-  return JSON.stringify({
+  const links = tableExists(db, 'links')
+    ? db.prepare(`SELECT url, domain FROM links WHERE conv_id = ?`).all(conv_id) as any[]
+    : []
+
+  const attachments = tableExists(db, 'attachments')
+    ? db.prepare(`SELECT type, name, mime_type, size_bytes FROM attachments WHERE conv_id = ?`).all(conv_id) as any[]
+    : []
+
+  const memories = tableExists(db, 'memories')
+    ? db.prepare(`SELECT text, create_time, message_id FROM memories WHERE conv_id = ? ORDER BY create_time ASC`).all(conv_id) as any[]
+    : []
+
+  const result: any = {
     conversation: {
       id: conv.id,
       title: conv.title,
@@ -596,7 +949,25 @@ function getConversation(args: any, db: Database.Database): string {
       has_image: !!m.has_image,
       text: m.text,
     })),
-  }, null, 2)
+  }
+
+  if (links.length > 0) {
+    result.links = links.map((l: any) => ({ url: l.url, domain: l.domain }))
+  }
+  if (attachments.length > 0) {
+    result.attachments = attachments.map((a: any) => ({
+      type: a.type, name: a.name, mime_type: a.mime_type, size_bytes: a.size_bytes,
+    }))
+  }
+  if (memories.length > 0) {
+    result.memories_created = memories.map((m: any) => ({
+      text: m.text,
+      date: fmtTime(m.create_time),
+      after_message: m.message_id,
+    }))
+  }
+
+  return JSON.stringify(result, null, 2)
 }
 
 // ── get_recent ───────────────────────────────────────────────────────────
@@ -725,13 +1096,358 @@ function listConversations(args: any, db: Database.Database): string {
   }, null, 2)
 }
 
+// ── search_links ────────────────────────────────────────────────────
+
+function searchLinks(args: any, db: Database.Database): string {
+  if (!tableExists(db, 'links')) {
+    return JSON.stringify({ error: 'Links table not found. Re-import conversations to index links.' })
+  }
+
+  const domain: string | undefined = args.domain
+  const query: string | undefined = args.query
+  const limit = Math.min(Math.max(1, args.limit ?? 25), 100)
+  const dateRange = readDateRange(args)
+
+  const conditions: string[] = []
+  const params: any[] = []
+
+  if (domain) {
+    conditions.push('LOWER(l.domain) LIKE LOWER(?)')
+    params.push(`%${domain}%`)
+  }
+  if (query) {
+    conditions.push('(l.url LIKE ? OR m.text LIKE ?)')
+    params.push(`%${query}%`, `%${query}%`)
+  }
+  addTimestampFilters(conditions, params, dateRange)
+
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+
+  const rows = db.prepare(`
+    SELECT l.url, l.domain, l.title,
+           m.id as message_id, m.role, m.create_time, m.conv_id,
+           c.title as conv_title
+    FROM links l
+    JOIN messages m ON m.id = l.message_id
+    JOIN conversations c ON c.id = l.conv_id
+    ${where}
+    ORDER BY m.create_time DESC
+    LIMIT ?
+  `).all(...params, limit) as any[]
+
+  return JSON.stringify({
+    domain_filter: domain ?? null,
+    query_filter: query ?? null,
+    date_range: dateRangeResponse(dateRange),
+    result_count: rows.length,
+    results: rows.map(r => ({
+      url: r.url,
+      domain: r.domain,
+      link_title: r.title,
+      role: r.role,
+      date: fmtTime(r.create_time),
+      conv_id: r.conv_id,
+      conv_title: r.conv_title,
+    })),
+  }, null, 2)
+}
+
+// ── list_memories ───────────────────────────────────────────────────
+
+function listMemories(args: any, db: Database.Database): string {
+  if (!tableExists(db, 'memories')) {
+    return JSON.stringify({ error: 'Memories table not found. Re-import conversations to index memories.' })
+  }
+
+  const query: string | undefined = args.query
+  const limit = Math.min(Math.max(1, args.limit ?? 50), 200)
+
+  const conditions: string[] = []
+  const params: any[] = []
+
+  if (query) {
+    conditions.push('mem.text LIKE ?')
+    params.push(`%${query}%`)
+  }
+
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+
+  const rows = db.prepare(`
+    SELECT mem.text, mem.create_time,
+           mem.conv_id, c.title as conv_title
+    FROM memories mem
+    JOIN conversations c ON c.id = mem.conv_id
+    ${where}
+    ORDER BY mem.create_time DESC
+    LIMIT ?
+  `).all(...params, limit) as any[]
+
+  return JSON.stringify({
+    query_filter: query ?? null,
+    result_count: rows.length,
+    memories: rows.map(r => ({
+      text: r.text,
+      date: fmtTime(r.create_time),
+      conv_id: r.conv_id,
+      conv_title: r.conv_title,
+    })),
+  }, null, 2)
+}
+
+// ── search_attachments ──────────────────────────────────────────────
+
+function searchAttachments(args: any, db: Database.Database): string {
+  if (!tableExists(db, 'attachments')) {
+    return JSON.stringify({ error: 'Attachments table not found. Re-import conversations to index attachments.' })
+  }
+
+  const type: string = args.type ?? 'any'
+  const query: string | undefined = args.query
+  const limit = Math.min(Math.max(1, args.limit ?? 25), 100)
+  const dateRange = readDateRange(args)
+
+  const conditions: string[] = []
+  const params: any[] = []
+
+  if (type !== 'any') {
+    conditions.push('a.type = ?')
+    params.push(type)
+  }
+  if (query) {
+    conditions.push('(a.name LIKE ? OR a.mime_type LIKE ? OR m.text LIKE ?)')
+    params.push(`%${query}%`, `%${query}%`, `%${query}%`)
+  }
+  addTimestampFilters(conditions, params, dateRange)
+
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+
+  const rows = db.prepare(`
+    SELECT a.type, a.name, a.mime_type, a.width, a.height, a.size_bytes,
+           m.id as message_id, m.role, m.create_time, m.conv_id,
+           c.title as conv_title
+    FROM attachments a
+    JOIN messages m ON m.id = a.message_id
+    JOIN conversations c ON c.id = a.conv_id
+    ${where}
+    ORDER BY m.create_time DESC
+    LIMIT ?
+  `).all(...params, limit) as any[]
+
+  return JSON.stringify({
+    type_filter: type,
+    query_filter: query ?? null,
+    date_range: dateRangeResponse(dateRange),
+    result_count: rows.length,
+    results: rows.map(r => ({
+      type: r.type,
+      name: r.name,
+      mime_type: r.mime_type,
+      width: r.width,
+      height: r.height,
+      size_bytes: r.size_bytes,
+      role: r.role,
+      date: fmtTime(r.create_time),
+      conv_id: r.conv_id,
+      conv_title: r.conv_title,
+    })),
+  }, null, 2)
+}
+
+// ── memory_timeline ─────────────────────────────────────────────────
+
+function memoryTimeline(args: any, db: Database.Database): string {
+  if (!tableExists(db, 'memories')) {
+    return JSON.stringify({ error: 'Memories table not found. Re-import conversations to index memories.' })
+  }
+
+  const groupBy: string = args.group_by ?? 'month'
+  const limit = Math.min(Math.max(1, args.limit ?? 200), 500)
+
+  const strftimeFmt = groupBy === 'day' ? '%Y-%m-%d'
+    : groupBy === 'week' ? '%Y-W%W'
+    : '%Y-%m'
+
+  const rows = db.prepare(`
+    SELECT mem.text, mem.create_time, mem.conv_id, c.title as conv_title,
+           strftime('${strftimeFmt}', mem.create_time, 'unixepoch') as period
+    FROM memories mem
+    JOIN conversations c ON c.id = mem.conv_id
+    WHERE mem.create_time IS NOT NULL
+    ORDER BY mem.create_time ASC
+    LIMIT ?
+  `).all(limit) as any[]
+
+  const groups: Record<string, any[]> = {}
+  for (const r of rows) {
+    const p = r.period || 'unknown'
+    if (!groups[p]) groups[p] = []
+    groups[p].push({
+      text: r.text,
+      date: fmtTime(r.create_time),
+      conv_id: r.conv_id,
+      conv_title: r.conv_title,
+    })
+  }
+
+  return JSON.stringify({
+    group_by: groupBy,
+    total_memories: rows.length,
+    groups: Object.entries(groups).map(([period, memories]) => ({ period, count: memories.length, memories })),
+  }, null, 2)
+}
+
+// ── memory_conflicts ────────────────────────────────────────────────
+
+function memoryConflicts(args: any, db: Database.Database): string {
+  if (!tableExists(db, 'memories')) {
+    return JSON.stringify({ error: 'Memories table not found. Re-import conversations to index memories.' })
+  }
+
+  const threshold = Math.min(Math.max(0.1, args.similarity_threshold ?? 0.5), 1.0)
+
+  const rows = db.prepare(`
+    SELECT mem.id, mem.text, mem.create_time, mem.conv_id, c.title as conv_title
+    FROM memories mem
+    JOIN conversations c ON c.id = mem.conv_id
+    ORDER BY mem.create_time ASC
+  `).all() as any[]
+
+  const tokenize = (text: string): Set<string> => {
+    return new Set(text.toLowerCase().split(/\s+/).filter(w => w.length >= 3))
+  }
+
+  const duplicates: any[] = []
+  const conflicts: any[] = []
+
+  const prefixPatterns = [
+    /^(?:the )?user (?:prefers?|uses?|likes?|wants?)\s+/i,
+    /^(?:the )?user (?:is a|works as|works at|works in|studies)\s+/i,
+    /^(?:the )?user(?:'s)? (?:name|email|location|role|job|language)\s+(?:is\s+)?/i,
+  ]
+
+  for (let i = 0; i < rows.length; i++) {
+    const wordsA = tokenize(rows[i].text)
+    for (let j = i + 1; j < rows.length; j++) {
+      const wordsB = tokenize(rows[j].text)
+      const intersection = new Set([...wordsA].filter(w => wordsB.has(w)))
+      const union = new Set([...wordsA, ...wordsB])
+      const jaccard = union.size > 0 ? intersection.size / union.size : 0
+
+      if (jaccard >= threshold) {
+        duplicates.push({
+          memory_a: { id: rows[i].id, text: rows[i].text, date: fmtTime(rows[i].create_time) },
+          memory_b: { id: rows[j].id, text: rows[j].text, date: fmtTime(rows[j].create_time) },
+          similarity: Number(jaccard.toFixed(3)),
+        })
+      }
+    }
+
+    for (const pattern of prefixPatterns) {
+      const matchA = rows[i].text.match(pattern)
+      if (!matchA) continue
+      const prefixA = matchA[0].toLowerCase()
+      const valueA = rows[i].text.slice(matchA[0].length).trim().toLowerCase()
+
+      for (let j = i + 1; j < rows.length; j++) {
+        const matchB = rows[j].text.match(pattern)
+        if (!matchB) continue
+        const prefixB = matchB[0].toLowerCase()
+        const valueB = rows[j].text.slice(matchB[0].length).trim().toLowerCase()
+
+        if (prefixA === prefixB && valueA !== valueB) {
+          conflicts.push({
+            memory_a: { id: rows[i].id, text: rows[i].text, date: fmtTime(rows[i].create_time) },
+            memory_b: { id: rows[j].id, text: rows[j].text, date: fmtTime(rows[j].create_time) },
+            reason: `Same pattern "${prefixA.trim()}" but different values: "${valueA}" vs "${valueB}"`,
+          })
+        }
+      }
+    }
+  }
+
+  return JSON.stringify({
+    total_memories: rows.length,
+    similarity_threshold: threshold,
+    duplicate_count: duplicates.length,
+    conflict_count: conflicts.length,
+    duplicates: duplicates.slice(0, 50),
+    conflicts: conflicts.slice(0, 50),
+  }, null, 2)
+}
+
+// ── export_memories ─────────────────────────────────────────────────
+
+function exportMemories(args: any, db: Database.Database): string {
+  if (!tableExists(db, 'memories')) {
+    return JSON.stringify({ error: 'Memories table not found. Re-import conversations to index memories.' })
+  }
+
+  const format: string = args.format ?? 'list'
+  const includeSource: boolean = !!args.include_source
+
+  const rows = db.prepare(`
+    SELECT mem.text, mem.create_time, c.title as conv_title, mem.conv_id
+    FROM memories mem
+    JOIN conversations c ON c.id = mem.conv_id
+    ORDER BY mem.create_time ASC
+  `).all() as any[]
+
+  if (format === 'markdown') {
+    const lines = rows.map(r => {
+      const date = fmtTime(r.create_time)
+      const source = includeSource ? ` _(from: ${r.conv_title})_` : ''
+      return `- **${date}**: ${r.text}${source}`
+    })
+    return `# ChatGPT Memories (${rows.length} entries)\n\n${lines.join('\n')}`
+  }
+
+  if (format === 'json') {
+    return JSON.stringify({
+      export_date: new Date().toISOString().slice(0, 10),
+      count: rows.length,
+      memories: rows.map(r => ({
+        text: r.text,
+        date: fmtTime(r.create_time),
+        conv_id: r.conv_id,
+        conv_title: r.conv_title,
+      })),
+    }, null, 2)
+  }
+
+  // default: list
+  return JSON.stringify({
+    count: rows.length,
+    memories: rows.map(r => {
+      const entry: any = { text: r.text, date: fmtTime(r.create_time) }
+      if (includeSource) {
+        entry.conv_id = r.conv_id
+        entry.conv_title = r.conv_title
+      }
+      return entry
+    }),
+  }, null, 2)
+}
+
 // ── get_stats ────────────────────────────────────────────────────────────
 
+function safeCount(db: Database.Database, table: string, where = ''): number {
+  if (!tableExists(db, table)) return 0
+  return (db.prepare(`SELECT COUNT(*) as n FROM ${table} ${where}`).get() as any).n
+}
+
 function getStats(db: Database.Database): string {
-  const convs = (db.prepare(`SELECT COUNT(*) as n FROM conversations`).get() as any).n
-  const msgs  = (db.prepare(`SELECT COUNT(*) as n FROM messages WHERE is_active_branch = 1`).get() as any).n
-  const codes = (db.prepare(`SELECT COUNT(*) as n FROM code_blocks`).get() as any).n
-  const imgs  = (db.prepare(`SELECT COUNT(*) as n FROM messages WHERE has_image = 1`).get() as any).n
+  const convs = safeCount(db, 'conversations')
+  const msgs  = safeCount(db, 'messages', 'WHERE is_active_branch = 1')
+  const codes = safeCount(db, 'code_blocks')
+  const imgs  = safeCount(db, 'messages', 'WHERE has_image = 1')
+  const linksCount = safeCount(db, 'links')
+  const memoriesCount = safeCount(db, 'memories')
+  const attachmentsCount = safeCount(db, 'attachments')
+  const fileAttachments = safeCount(db, 'attachments', "WHERE type = 'file'")
+  const imageAttachments = safeCount(db, 'attachments', "WHERE type = 'image'")
+  const uniqueDomains = tableExists(db, 'links')
+    ? (db.prepare(`SELECT COUNT(DISTINCT domain) as n FROM links WHERE domain IS NOT NULL AND domain != ''`).get() as any).n
+    : 0
   const embeddingConfig = getEmbeddingConfig()
   const semanticIndexed = tableExists(db, 'message_embeddings')
     ? (db.prepare(`
@@ -780,6 +1496,10 @@ function getStats(db: Database.Database): string {
     messages: msgs,
     code_blocks: codes,
     messages_with_images: imgs,
+    links: linksCount,
+    unique_domains: uniqueDomains,
+    attachments: { total: attachmentsCount, images: imageAttachments, files: fileAttachments },
+    memories: memoriesCount,
     semantic_indexed_messages: semanticIndexed,
     semantic_model: embeddingConfig.model,
     semantic_dimensions: embeddingConfig.dims,

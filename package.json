@@ -7,10 +7,11 @@
     "mcp:build": "cd historykit-mcp && npm install && npm run build",
     "mcp:start": "node historykit-mcp/dist/index.js",
     "mcp:install-claude": "node scripts/install-claude-mcp.js",
+    "sync:chatgpt": "node scripts/sync-chatgpt-history.mjs",
 
     "dev": "concurrently -n main,vite,electron -c cyan,green,yellow \"npm run compile-main\" \"vite\" \"npm run electron-dev\"",
     "compile-main": "tsc --watch --preserveWatchOutput",
-    "electron-dev": "wait-on dist-electron/main.js tcp:5173 && cross-env NODE_ENV=development electron .",
+    "electron-dev": "wait-on dist-electron/main.js tcp:4173 && cross-env NODE_ENV=development electron .",
     "build": "tsc && vite build && electron-builder",
     "build:renderer": "vite build",
     "preview": "vite preview"
@@ -45,6 +46,10 @@
     },
     "files": ["dist/**/*", "dist-electron/**/*"],
     "extraResources": [
+      {
+        "from": "scripts/sync-chatgpt-history.mjs",
+        "to": "scripts/sync-chatgpt-history.mjs"
+      },
       {
         "from": "historykit-mcp",
         "to": "historykit-mcp",

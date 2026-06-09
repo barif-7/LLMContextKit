@@ -7,6 +7,8 @@ import { initDB, getDB } from './db'
 import { parseConversations } from './parser'
 import { parseClaudeConversations } from './parser-claude'
 import { detectFormat } from './format-detector'
+import { registerSyncIpc } from './sync'
+import { registerSearchIpc } from './search'
 
 const isDev = process.env.NODE_ENV === 'development'
 
@@ -23,6 +25,16 @@ function historykitDbPath() {
   return path.join(app.getPath('userData'), 'historykit.db')
 }
 
+function nodeCommandPath() {
+  const configured = process.env.HISTORYKIT_NODE_BIN
+  if (configured) return configured
+
+  const node22Path = path.join(os.homedir(), '.nvm', 'versions', 'node', 'v22.22.3', 'bin', 'node')
+  if (fs.existsSync(node22Path)) return node22Path
+
+  return 'node'
+}
+
 function claudeConfigPath() {
   if (process.platform === 'darwin') {
     return path.join(os.homedir(), 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json')
@@ -35,12 +47,16 @@ function claudeConfigPath() {
 
 function mcpClientConfig() {
   return {
-    command: 'node',
+    command: nodeCommandPath(),
     args: [mcpServerPath()],
     env: {
       HISTORYKIT_DB_PATH: historykitDbPath(),
     },
   }
+}
+
+function tableExists(name: string) {
+  return !!getDB().prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name)
 }
 
 function createWindow() {
@@ -61,8 +77,12 @@ function createWindow() {
     },
   })
 
+  mainWindow.webContents.on('will-navigate', (event) => {
+    event.preventDefault()
+  })
+
   if (isDev) {
-    mainWindow.loadURL('http://localhost:5173')
+    mainWindow.loadURL('http://localhost:4173')
     mainWindow.webContents.openDevTools()
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
@@ -71,6 +91,8 @@ function createWindow() {
 
 app.whenReady().then(() => {
   initDB()
+  registerSyncIpc()
+  registerSearchIpc()
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -81,20 +103,140 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
+// ── Folder import ─────────────────────────────────────────────────────────────
+
+function collectJsonFiles(dir: string): string[] {
+  const results: string[] = []
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name.startsWith('.')) continue
+    const full = path.join(dir, entry.name)
+    if (entry.isDirectory()) {
+      results.push(...collectJsonFiles(full))
+    } else if (entry.name.endsWith('.json')) {
+      results.push(full)
+    }
+  }
+  return results
+}
+
+async function importFolder(folderPath: string) {
+  const jsonFiles = collectJsonFiles(folderPath)
+  if (jsonFiles.length === 0) {
+    return { ok: false, error: 'No JSON files found in folder.' }
+  }
+
+  console.log(`[import:folder] found ${jsonFiles.length} JSON files in ${path.basename(folderPath)}`)
+
+  let totalConvs = 0
+  let totalMsgs = 0
+  let totalSkipped = 0
+  let filesProcessed = 0
+  let filesSkipped = 0
+  const errors: string[] = []
+
+  // Separate the main conversations file (if any) from individual conversation files
+  // Import the main file first (full import), then merge individual files
+  const mainFile = jsonFiles.find((f) => path.basename(f) === 'conversations.json')
+  const otherFiles = jsonFiles.filter((f) => f !== mainFile)
+
+  const onProgress = (progress: { done: number; total: number; phase: string }) => {
+    mainWindow?.webContents.send('import:progress', {
+      ...progress,
+      phase: `${progress.phase} (${filesProcessed + 1}/${jsonFiles.length} files)`,
+    })
+  }
+
+  // Import main conversations.json first (if present)
+  if (mainFile) {
+    try {
+      const raw = fs.readFileSync(mainFile, 'utf-8')
+      const data = JSON.parse(raw)
+      const format = detectFormat(data)
+      if (format !== 'unknown') {
+        console.log(`[import:folder] main file: ${path.basename(mainFile)} format=${format}`)
+        const result = format === 'chatgpt'
+          ? await parseConversations(data, onProgress)
+          : await parseClaudeConversations(data, onProgress)
+        totalConvs += result.conversations
+        totalMsgs += result.messages
+        totalSkipped += result.skipped
+        filesProcessed++
+      } else {
+        filesSkipped++
+      }
+    } catch (err: any) {
+      errors.push(`${path.basename(mainFile)}: ${err.message}`)
+    }
+  }
+
+  // Then merge individual files (design_chats, etc.)
+  for (const filePath of otherFiles) {
+    try {
+      const raw = fs.readFileSync(filePath, 'utf-8')
+      const data = JSON.parse(raw)
+      const format = detectFormat(data)
+      if (format === 'unknown') {
+        filesSkipped++
+        continue
+      }
+
+      console.log(`[import:folder] ${path.relative(folderPath, filePath)} format=${format}`)
+      const result = format === 'chatgpt'
+        ? await parseConversations(data, onProgress, { merge: true })
+        : await parseClaudeConversations(data, onProgress)
+      totalConvs += result.conversations
+      totalMsgs += result.messages
+      totalSkipped += result.skipped
+      filesProcessed++
+    } catch (err: any) {
+      errors.push(`${path.relative(folderPath, filePath)}: ${err.message}`)
+    }
+  }
+
+  console.log(`[import:folder] done: ${filesProcessed} files, ${totalConvs} conversations, ${totalMsgs} messages, ${filesSkipped} skipped`)
+  if (errors.length) console.error(`[import:folder] errors:`, errors)
+
+  return {
+    ok: true,
+    format: 'folder',
+    conversations: totalConvs,
+    messages: totalMsgs,
+    skipped: totalSkipped,
+    filesProcessed,
+    filesSkipped,
+    errors: errors.length ? errors : undefined,
+  }
+}
+
 // ── IPC: Import file ──────────────────────────────────────────────────────────
 
 ipcMain.handle('dialog:openFile', async () => {
   const result = await dialog.showOpenDialog(mainWindow!, {
-    title: 'Open conversations.json',
+    title: 'Open conversations export',
     filters: [{ name: 'JSON', extensions: ['json'] }],
-    properties: ['openFile'],
+    properties: ['openFile', 'openDirectory'],
   })
   if (result.canceled || !result.filePaths.length) return null
   return result.filePaths[0]
 })
 
+ipcMain.handle('dialog:openFileForMerge', async () => {
+  const result = await dialog.showOpenDialog(mainWindow!, {
+    title: 'Add conversation(s)',
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+    properties: ['openFile', 'multiSelections'],
+  })
+  if (result.canceled || !result.filePaths.length) return null
+  return result.filePaths
+})
+
 ipcMain.handle('import:file', async (_event, filePath: string) => {
   try {
+    const stat = fs.statSync(filePath)
+    if (stat.isDirectory()) {
+      return await importFolder(filePath)
+    }
+
     const raw = fs.readFileSync(filePath, 'utf-8')
     const data = JSON.parse(raw)
     const format = detectFormat(data)
@@ -105,15 +247,44 @@ ipcMain.handle('import:file', async (_event, filePath: string) => {
       }
     }
 
+    const isSingle = data && typeof data === 'object' && !Array.isArray(data)
+      && typeof data.mapping === 'object' && !data.conversations
+    console.log(`[import] file=${path.basename(filePath)} format=${format} isSingle=${isSingle}`)
+
     const onProgress = (progress: { done: number; total: number; phase: string }) => {
       mainWindow?.webContents.send('import:progress', progress)
     }
+
     const result = format === 'chatgpt'
-      ? await parseConversations(data, onProgress)
+      ? await parseConversations(data, onProgress, { merge: isSingle })
       : await parseClaudeConversations(data, onProgress)
 
-    return { ok: true, format, ...result }
+    console.log(`[import] result: conversations=${result.conversations} messages=${result.messages} merged=${isSingle}`)
+    return { ok: true, format, merged: isSingle, ...result }
   } catch (err: any) {
+    console.error(`[import] error:`, err.message)
+    return { ok: false, error: err.message }
+  }
+})
+
+ipcMain.handle('import:merge', async (_event, filePaths: string[]) => {
+  let totalConvs = 0, totalMsgs = 0, totalSkipped = 0
+  try {
+    for (const filePath of filePaths) {
+      const raw = fs.readFileSync(filePath, 'utf-8')
+      const data = JSON.parse(raw)
+      console.log(`[merge] file=${path.basename(filePath)}`)
+      const result = await parseConversations(data, (progress) => {
+        mainWindow?.webContents.send('import:progress', progress)
+      }, { merge: true })
+      totalConvs += result.conversations
+      totalMsgs += result.messages
+      totalSkipped += result.skipped
+    }
+    console.log(`[merge] done: ${totalConvs} conversations, ${totalMsgs} messages`)
+    return { ok: true, merged: true, conversations: totalConvs, messages: totalMsgs, skipped: totalSkipped }
+  } catch (err: any) {
+    console.error(`[merge] error:`, err.message)
     return { ok: false, error: err.message }
   }
 })
@@ -179,10 +350,12 @@ ipcMain.handle('search:query', async (_event, params: SearchParams) => {
     relevance: 'ORDER BY m.create_time DESC',
   }
   sql += ' ' + (orderMap[params.sort || 'newest'] || orderMap.newest)
-  sql += ` LIMIT 200`
 
-  const rows = db.prepare(sql).all(...args)
-  return rows
+  const limit = params.limit ?? 51
+  const offset = params.offset ?? 0
+  sql += ` LIMIT ${limit} OFFSET ${offset}`
+
+  return db.prepare(sql).all(...args)
 })
 
 ipcMain.handle('search:stats', async () => {
@@ -192,6 +365,9 @@ ipcMain.handle('search:stats', async () => {
   const code = db.prepare(`SELECT COUNT(*) as n FROM messages WHERE has_code=1`).get() as any
   const images = db.prepare(`SELECT COUNT(*) as n FROM messages WHERE has_image=1`).get() as any
   const words = db.prepare(`SELECT SUM(word_count) as n FROM messages`).get() as any
+  const files = db.prepare(`SELECT COUNT(*) as n FROM attachments WHERE type='file'`).get() as any
+  const links = db.prepare(`SELECT COUNT(*) as n FROM links`).get() as any
+  const memoriesCount = db.prepare(`SELECT COUNT(*) as n FROM memories`).get() as any
   const sourceMessageRows = db.prepare(`
     SELECT source, COUNT(*) as messages
     FROM messages
@@ -222,6 +398,9 @@ ipcMain.handle('search:stats', async () => {
     withCode: code.n,
     withImages: images.n,
     totalWords: words.n || 0,
+    withFiles: files.n,
+    withLinks: links.n,
+    withMemories: memoriesCount.n,
     bySource,
   }
 })
@@ -241,7 +420,6 @@ ipcMain.handle('messages:context', async (_event, msgId: string) => {
   const msg = db.prepare(`SELECT * FROM messages WHERE id = ?`).get(msgId) as any
   if (!msg) return []
 
-  // Return surrounding messages in same conversation, same branch
   return db.prepare(`
     SELECT m.*, c.title as conv_title
     FROM messages m
@@ -252,14 +430,125 @@ ipcMain.handle('messages:context', async (_event, msgId: string) => {
   `).all(msg.conv_id, msg.is_active_branch)
 })
 
+ipcMain.handle('messages:byConversation', async (_event, convId: string) => {
+  const db = getDB()
+  return db.prepare(`
+    SELECT m.*, c.title as conv_title
+    FROM messages m
+    JOIN conversations c ON c.id = m.conv_id
+    WHERE m.conv_id = ?
+      AND m.is_active_branch = 1
+    ORDER BY m.create_time ASC, m.depth ASC
+  `).all(convId)
+})
+
 ipcMain.handle('messages:codeblocks', async (_event, msgId: string) => {
   const db = getDB()
   return db.prepare(`SELECT * FROM code_blocks WHERE message_id = ? ORDER BY position`).all(msgId)
 })
 
+// ── IPC: Code block search ───────────────────────────────────────────────────
+
+ipcMain.handle('search:codeblocks', async (_event, params: CodeSearchParams) => {
+  const db = getDB()
+  const { query, langs } = params
+  let sql = `
+    SELECT cb.id, cb.lang, cb.code, cb.position,
+           m.id as message_id, m.text as message_text,
+           m.create_time, m.conv_id,
+           c.title as conv_title
+    FROM code_blocks cb
+    JOIN messages m ON m.id = cb.message_id
+    JOIN conversations c ON c.id = m.conv_id
+    WHERE 1=1
+  `
+  const args: any[] = []
+  if (query) {
+    sql += ` AND (cb.code LIKE '%' || ? || '%' OR m.text LIKE '%' || ? || '%')`
+    args.push(query, query)
+  }
+  if (langs && langs.length > 0) {
+    sql += ` AND cb.lang IN (${langs.map(() => '?').join(',')})`
+    args.push(...langs)
+  }
+  const limit = params.limit ?? 51
+  const offset = params.offset ?? 0
+  sql += ` ORDER BY m.create_time DESC LIMIT ${limit} OFFSET ${offset}`
+  return db.prepare(sql).all(...args)
+})
+
+ipcMain.handle('search:codeLangs', async () => {
+  const db = getDB()
+  return db.prepare(`
+    SELECT lang, COUNT(*) as count
+    FROM code_blocks
+    WHERE lang != '' AND lang IS NOT NULL
+    GROUP BY lang
+    ORDER BY count DESC
+  `).all()
+})
+
+// ── IPC: Attachments, Links, Memories ────────────────────────────────────────
+
+ipcMain.handle('attachments:list', async (_event, type: string) => {
+  const db = getDB()
+  return db.prepare(`
+    SELECT
+      a.id, a.message_id, a.conv_id, a.type,
+      a.asset_pointer, a.name, a.mime_type,
+      a.width, a.height, a.size_bytes,
+      m.role, m.text, m.word_count, m.has_code, m.has_image,
+      m.code_langs, m.create_time, m.model, m.is_active_branch, m.branch_index,
+      c.title AS conv_title, c.update_time AS conv_updated
+    FROM attachments a
+    JOIN messages m ON m.id = a.message_id
+    JOIN conversations c ON c.id = a.conv_id
+    WHERE a.type = ?
+    ORDER BY m.create_time DESC
+    LIMIT 300
+  `).all(type)
+})
+
+ipcMain.handle('links:list', async () => {
+  const db = getDB()
+  return db.prepare(`
+    SELECT
+      l.id, l.message_id, l.conv_id, l.url, l.domain, l.title,
+      m.role, m.text, m.word_count, m.has_code, m.has_image,
+      m.code_langs, m.create_time, m.model, m.is_active_branch, m.branch_index,
+      c.title AS conv_title, c.update_time AS conv_updated
+    FROM links l
+    JOIN messages m ON m.id = l.message_id
+    JOIN conversations c ON c.id = l.conv_id
+    ORDER BY m.create_time DESC
+    LIMIT 500
+  `).all()
+})
+
+ipcMain.handle('memories:list', async () => {
+  const db = getDB()
+  return db.prepare(`
+    SELECT
+      mem.id, mem.message_id, mem.conv_id, mem.text, mem.create_time,
+      c.title AS conv_title, c.update_time AS conv_updated
+    FROM memories mem
+    JOIN conversations c ON c.id = mem.conv_id
+    ORDER BY mem.create_time DESC
+  `).all()
+})
+
+// ── IPC: Shell ───────────────────────────────────────────────────────────────
+
+ipcMain.handle('shell:openExternal', (_event, url: string) => {
+  return shell.openExternal(url)
+})
+
+// ── IPC: Clear DB ────────────────────────────────────────────────────────────
+
 ipcMain.handle('db:clear', async () => {
   const db = getDB()
-  db.exec(`DELETE FROM code_blocks; DELETE FROM messages; DELETE FROM conversations;`)
+  if (tableExists('message_embeddings')) db.exec(`DELETE FROM message_embeddings;`)
+  db.exec(`DELETE FROM attachment_contents; DELETE FROM code_blocks; DELETE FROM attachments; DELETE FROM links; DELETE FROM memories; DELETE FROM messages; DELETE FROM conversations;`)
   return { ok: true }
 })
 
@@ -286,11 +575,18 @@ ipcMain.handle('mcp:status', async () => {
     config: mcpClientConfig(),
     tools: [
       'search_conversations',
+      'semantic_search',
       'search_code',
       'get_conversation',
       'get_recent',
       'list_conversations',
+      'search_links',
+      'list_memories',
+      'search_attachments',
       'get_stats',
+      'memory_timeline',
+      'memory_conflicts',
+      'export_memories',
     ],
   }
 })
@@ -336,4 +632,13 @@ interface SearchParams {
   activeBranchOnly?: boolean
   sort?: string
   source?: string
+  limit?: number
+  offset?: number
+}
+
+interface CodeSearchParams {
+  query?: string
+  langs?: string[]
+  limit?: number
+  offset?: number
 }

@@ -130,6 +130,33 @@
   overflow-wrap: anywhere;
 }
 
+.flagRow {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 9px 0;
+  color: var(--t2);
+}
+
+.flagRow input {
+  margin-top: 3px;
+}
+
+.flagRow strong {
+  display: block;
+  font-size: 13px;
+  color: var(--t1);
+  font-weight: 500;
+}
+
+.flagRow em {
+  display: block;
+  font-style: normal;
+  font-size: 12px;
+  color: var(--t3);
+  margin-top: 2px;
+}
+
 .grid {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.8fr);

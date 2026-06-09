@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { SearchFlags } from '../App'
 import styles from './McpPanel.module.css'
 
 export interface McpStatus {
@@ -29,6 +30,10 @@ export function McpPanel() {
   const [status, setStatus] = useState<McpStatus | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [searchFlags, setSearchFlags] = useState<SearchFlags>({
+    restoreSearchResults: true,
+    semanticSearchSuite: false,
+  })
 
   async function refresh() {
     setStatus(await window.api.mcpStatus())
@@ -36,6 +41,7 @@ export function McpPanel() {
 
   useEffect(() => {
     refresh()
+    window.api.searchFlags().then(setSearchFlags).catch(() => {})
   }, [])
 
   const configText = useMemo(() => {
@@ -64,6 +70,11 @@ export function McpPanel() {
     }
   }
 
+  async function updateSearchFlags(patch: Partial<SearchFlags>) {
+    const next = await window.api.setSearchFlags(patch)
+    setSearchFlags(next)
+  }
+
   if (!status) {
     return (
       <div className={styles.panel}>
@@ -87,6 +98,32 @@ export function McpPanel() {
         <StatusPill ok={status.dbExists} label={status.dbExists ? 'Database found' : 'Database missing'} />
         <StatusPill ok={!!status.nodeVersion} label={status.nodeVersion || 'Node unavailable'} />
       </div>
+
+      <section className={styles.section}>
+        <h2>Search Modes</h2>
+        <label className={styles.flagRow}>
+          <input
+            type="checkbox"
+            checked={searchFlags.restoreSearchResults}
+            onChange={e => void updateSearchFlags({ restoreSearchResults: e.target.checked })}
+          />
+          <span>
+            <strong>Restore classic search</strong>
+            <em>Keyword search over messages, code blocks, and file-backed results.</em>
+          </span>
+        </label>
+        <label className={styles.flagRow}>
+          <input
+            type="checkbox"
+            checked={searchFlags.semanticSearchSuite}
+            onChange={e => void updateSearchFlags({ semanticSearchSuite: e.target.checked })}
+          />
+          <span>
+            <strong>Semantic search suite</strong>
+            <em>Reserved for embeddings-backed search later.</em>
+          </span>
+        </label>
+      </section>
 
       <section className={styles.section}>
         <h2>Client Configuration</h2>

@@ -60,6 +60,42 @@ export function initDB() {
     );
     CREATE INDEX IF NOT EXISTS idx_code_message ON code_blocks(message_id);
 
+    CREATE TABLE IF NOT EXISTS attachments (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      message_id    TEXT NOT NULL,
+      conv_id       TEXT NOT NULL,
+      type          TEXT NOT NULL DEFAULT 'image',
+      asset_pointer TEXT,
+      name          TEXT,
+      mime_type     TEXT,
+      width         INTEGER,
+      height        INTEGER,
+      size_bytes    INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_attachments_conv ON attachments(conv_id);
+    CREATE INDEX IF NOT EXISTS idx_attachments_type ON attachments(type);
+
+    CREATE TABLE IF NOT EXISTS links (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      message_id    TEXT NOT NULL,
+      conv_id       TEXT NOT NULL,
+      url           TEXT NOT NULL,
+      domain        TEXT,
+      title         TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_links_conv   ON links(conv_id);
+    CREATE INDEX IF NOT EXISTS idx_links_domain ON links(domain);
+
+    CREATE TABLE IF NOT EXISTS memories (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      message_id    TEXT NOT NULL,
+      conv_id       TEXT NOT NULL,
+      text          TEXT NOT NULL,
+      create_time   REAL
+    );
+    CREATE INDEX IF NOT EXISTS idx_memories_conv ON memories(conv_id);
+    CREATE INDEX IF NOT EXISTS idx_memories_time ON memories(create_time DESC);
+
     CREATE TABLE IF NOT EXISTS attachment_contents (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
       message_id  TEXT NOT NULL,

@@ -7,6 +7,7 @@ interface Props {
   query: string
   isSelected: boolean
   onSelect: (msg: Message) => void
+  onConvOpen: (convId: string) => void
 }
 
 const CODE_FENCE_RE = /```(\w*)\r?\n?([\s\S]*?)```/g
@@ -49,7 +50,7 @@ function parseSegments(text: string): Seg[] {
   return segs
 }
 
-export function MessageCard({ message: msg, query, isSelected, onSelect }: Props) {
+export function MessageCard({ message: msg, query, isSelected, onSelect, onConvOpen }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [copiedId, setCopiedId] = useState<number | null>(null)
 
@@ -86,9 +87,13 @@ export function MessageCard({ message: msg, query, isSelected, onSelect }: Props
             {msg.model && <span className={styles.model}>{msg.model}</span>}
             <span className={styles.time}>{fmtDate(msg.create_time)}</span>
           </div>
-          <div className={styles.convTitle} title={msg.conv_title}>
+          <button
+            className={styles.convTitle}
+            title={msg.conv_title}
+            onClick={(e) => { e.stopPropagation(); onConvOpen(msg.conv_id) }}
+          >
             {msg.conv_title || 'Untitled conversation'}
-          </div>
+          </button>
         </div>
 
         <div className={styles.badges}>

@@ -1,60 +1,38 @@
-import type { ViewFilter, Conversation, Stats } from '../App'
+import type { AppView, Stats } from '../App'
 import styles from './Sidebar.module.css'
 
 interface Props {
-  conversations: Conversation[]
-  activeConvId: string | null
-  activeView: ViewFilter
+  activeView: AppView
   stats: Stats | null
-  onConvSelect: (id: string | null) => void
-  onViewChange: (v: ViewFilter) => void
+  onViewChange: (v: AppView) => void
   onReimport: () => void
-  onMcpSelect: () => void
-  mcpActive: boolean
+  onMergeImport: () => void
 }
 
-const VIEWS: { id: ViewFilter; label: string; icon: React.ReactNode }[] = [
+const NAV_ITEMS: { id: AppView; label: string; icon: React.ReactNode }[] = [
   {
-    id: 'all', label: 'All messages',
-    icon: <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="1.5" y="1.5" width="5" height="5" rx="1"/><rect x="8.5" y="1.5" width="5" height="5" rx="1"/><rect x="1.5" y="8.5" width="5" height="5" rx="1"/><rect x="8.5" y="8.5" width="5" height="5" rx="1"/></svg>
+    id: 'search', label: 'Search',
+    icon: <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="6.5" cy="6.5" r="4"/><path d="M9.5 9.5L13 13"/></svg>,
   },
   {
-    id: 'code', label: 'Code blocks',
-    icon: <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4"><polyline points="4,4.5 1.5,7.5 4,10.5"/><polyline points="11,4.5 13.5,7.5 11,10.5"/><line x1="9" y1="2.5" x2="6" y2="12.5"/></svg>
+    id: 'browse', label: 'Browse',
+    icon: <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="2" y="2" width="11" height="11" rx="1.5"/><line x1="2" y1="5.5" x2="13" y2="5.5"/><line x1="5.5" y1="5.5" x2="5.5" y2="13"/></svg>,
   },
   {
-    id: 'images', label: 'Images',
-    icon: <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="1.5" y="3" width="12" height="9" rx="1.5"/><circle cx="5.5" cy="6" r="1"/><path d="M1.5 10.5l3-3 2 2 3-3 4 4"/></svg>
+    id: 'profile', label: 'Profile',
+    icon: <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="7.5" cy="5" r="2.5"/><path d="M3 13c0-2.5 2-4.5 4.5-4.5S12 10.5 12 13"/></svg>,
   },
   {
-    id: 'long', label: 'Long replies',
-    icon: <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4"><line x1="2.5" y1="4" x2="12.5" y2="4"/><line x1="2.5" y1="6.5" x2="12.5" y2="6.5"/><line x1="2.5" y1="9" x2="9" y2="9"/><line x1="2.5" y1="11.5" x2="7" y2="11.5"/></svg>
+    id: 'sync', label: 'Sync',
+    icon: <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M2 6.5A4.5 4.5 0 0110.5 3.5M2 2v4h4"/><path d="M13 8.5A4.5 4.5 0 014.5 11.5M13 13V9H9"/></svg>,
   },
   {
-    id: 'branches', label: 'All branches',
-    icon: <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="4" cy="4" r="1.5"/><circle cx="4" cy="11" r="1.5"/><circle cx="11" cy="8" r="1.5"/><path d="M4 5.5v4M4 5.5c0 0 7 0 7 2.5"/></svg>
+    id: 'mcp', label: 'MCP Setup',
+    icon: <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M5 3h5v3H5zM2.5 9.5h4v2h-4zM8.5 9.5h4v2h-4z"/><path d="M7.5 6v3.5M4.5 9.5V8h6v1.5"/></svg>,
   },
 ]
 
-export function Sidebar({
-  conversations,
-  activeConvId,
-  activeView,
-  stats,
-  onConvSelect,
-  onViewChange,
-  onReimport,
-  onMcpSelect,
-  mcpActive,
-}: Props) {
-  const statBadge = (view: ViewFilter): number | null => {
-    if (!stats) return null
-    if (view === 'all') return stats.messages
-    if (view === 'code') return stats.withCode
-    if (view === 'images') return stats.withImages
-    return null
-  }
-
+export function Sidebar({ activeView, stats, onViewChange, onReimport, onMergeImport }: Props) {
   return (
     <aside className={styles.sidebar}>
       <div className={styles.logo}>
@@ -62,61 +40,61 @@ export function Sidebar({
       </div>
 
       <nav className={styles.nav}>
-        <div className={styles.sectionLabel}>Browse</div>
-        {VIEWS.map(v => (
+        {NAV_ITEMS.map(item => (
           <button
-            key={v.id}
-            className={`${styles.navBtn} ${activeView === v.id && !activeConvId ? styles.active : ''}`}
-            onClick={() => { onConvSelect(null); onViewChange(v.id) }}
+            key={item.id}
+            className={`${styles.navBtn} ${activeView === item.id ? styles.active : ''}`}
+            onClick={() => onViewChange(item.id)}
           >
-            <span className={styles.navIcon}>{v.icon}</span>
-            <span className={styles.navLabel}>{v.label}</span>
-            {statBadge(v.id) !== null && (
-              <span className={styles.badge}>{statBadge(v.id)!.toLocaleString()}</span>
-            )}
+            <span className={styles.navIcon}>{item.icon}</span>
+            <span className={styles.navLabel}>{item.label}</span>
           </button>
         ))}
       </nav>
 
-      <div className={styles.convSection}>
-        <div className={styles.sectionLabel}>
-          Conversations
-          <span className={styles.convCount}>{conversations.length}</span>
+      {stats && (
+        <div className={styles.statsSection}>
+          <div className={styles.sectionLabel}>Overview</div>
+          <div className={styles.statGrid}>
+            <div className={styles.statItem}>
+              <span className={styles.statValue}>{stats.conversations.toLocaleString()}</span>
+              <span className={styles.statLabel}>conversations</span>
+            </div>
+            <div className={styles.statItem}>
+              <span className={styles.statValue}>{stats.messages.toLocaleString()}</span>
+              <span className={styles.statLabel}>messages</span>
+            </div>
+            <div className={styles.statItem}>
+              <span className={styles.statValue}>{stats.withCode.toLocaleString()}</span>
+              <span className={styles.statLabel}>with code</span>
+            </div>
+            <div className={styles.statItem}>
+              <span className={styles.statValue}>{(stats.totalWords / 1000).toFixed(0)}k</span>
+              <span className={styles.statLabel}>words</span>
+            </div>
+          </div>
+          {stats.bySource.chatgpt.messages > 0 && stats.bySource.claude.messages > 0 && (
+            <div className={styles.sourceBreakdown}>
+              <span className={styles.sourceBadge} style={{ color: 'var(--green, #4ade80)' }}>
+                ChatGPT {stats.bySource.chatgpt.conversations}
+              </span>
+              <span className={styles.sourceBadge} style={{ color: '#d97757' }}>
+                Claude {stats.bySource.claude.conversations}
+              </span>
+            </div>
+          )}
         </div>
-        <div className={styles.convList}>
-          {conversations.map(conv => (
-            <button
-              key={conv.id}
-              className={`${styles.convItem} ${activeConvId === conv.id ? styles.activeConv : ''}`}
-              onClick={() => onConvSelect(conv.id)}
-              title={conv.title}
-            >
-              <span className={styles.convTitle}>{conv.title || 'Untitled'}</span>
-              <span className={styles.convMsgs}>{conv.msg_count}</span>
-            </button>
-          ))}
-        </div>
-      </div>
+      )}
 
       <div className={styles.footer}>
-        <button
-          className={`${styles.mcpBtn} ${mcpActive ? styles.mcpActive : ''}`}
-          onClick={onMcpSelect}
-          title="MCP setup"
-        >
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.3">
-            <path d="M4.5 2.5h4v3h-4zM2 8.5h3.5v2H2zM7.5 8.5H11v2H7.5z"/>
-            <path d="M6.5 5.5v3M3.75 8.5V7h5.5v1.5"/>
-          </svg>
-          MCP
-        </button>
-        <button className={styles.reimportBtn} onClick={onReimport}>
+        <button className={styles.actionBtn} onClick={onReimport}>
           <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.3"><path d="M2 6.5A4.5 4.5 0 0110.5 3.5M2 2v4h4"/><path d="M11 6.5A4.5 4.5 0 012.5 9.5M11 11V7H7"/></svg>
-          Re-import
+          Import
         </button>
-        {stats && (
-          <span className={styles.footerStat}>{(stats.totalWords / 1000).toFixed(0)}k words indexed</span>
-        )}
+        <button className={styles.actionBtn} onClick={onMergeImport}>
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.3"><path d="M6.5 2v9M2.5 6.5h8"/></svg>
+          Merge
+        </button>
       </div>
     </aside>
   )

@@ -1,0 +1,213 @@
+.view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.header {
+  padding: 16px 20px 0;
+  flex-shrink: 0;
+}
+.title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--t1);
+  letter-spacing: -0.3px;
+}
+.subtitle {
+  font-size: 13px;
+  color: var(--t3);
+  margin-top: 2px;
+}
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  padding: 12px 20px;
+  flex-shrink: 0;
+}
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--r);
+  font-size: 13px;
+  color: var(--t3);
+  transition: all 0.12s;
+  border: 1px solid transparent;
+}
+.tab:hover { color: var(--t1); background: var(--bg3); }
+.tabActive {
+  color: var(--violet);
+  background: var(--violet-dim);
+  border-color: rgba(139,124,248,0.2);
+}
+.tabCount {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  background: rgba(139,124,248,0.15);
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+.tab:not(.tabActive) .tabCount {
+  background: var(--bg5);
+  color: var(--t4);
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 20px 20px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.loading {
+  text-align: center;
+  color: var(--t3);
+  padding: 40px;
+  font-size: 14px;
+}
+.empty {
+  text-align: center;
+  color: var(--t3);
+  padding: 40px;
+  font-size: 14px;
+}
+
+/* Memories */
+.memoryCard {
+  padding: 10px 14px;
+  background: var(--bg2);
+  border: 1px solid var(--b1);
+  border-radius: var(--r-sm);
+}
+.memoryText {
+  font-size: 13px;
+  color: var(--t1);
+  line-height: 1.5;
+}
+.memoryMeta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--t4);
+  font-family: var(--font-mono);
+}
+
+/* Links */
+.domainGroup {
+  border: 1px solid var(--b1);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+.domainHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg3);
+}
+.domainName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--t1);
+}
+.domainCount {
+  font-size: 11px;
+  color: var(--t4);
+  font-family: var(--font-mono);
+}
+.urlList {
+  display: flex;
+  flex-direction: column;
+}
+.urlRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border-top: 1px solid var(--b1);
+}
+.urlText {
+  flex: 1;
+  font-size: 12px;
+  color: var(--teal, #2dd4bf);
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.urlText:hover { text-decoration: underline; }
+
+/* Attachments */
+.attachToggle {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--bg3);
+  border-radius: var(--r);
+  border: 1px solid var(--b1);
+  margin-bottom: 8px;
+  width: fit-content;
+}
+.attachBtn {
+  padding: 5px 12px;
+  border-radius: calc(var(--r) - 2px);
+  font-size: 12px;
+  color: var(--t3);
+  transition: all 0.12s;
+}
+.attachBtn:hover { color: var(--t1); }
+.attachActive {
+  background: var(--violet-dim);
+  color: var(--violet);
+}
+
+.attachCard {
+  padding: 10px 14px;
+  background: var(--bg2);
+  border: 1px solid var(--b1);
+  border-radius: var(--r-sm);
+}
+.attachName {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--t1);
+}
+.attachMeta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--t4);
+  font-family: var(--font-mono);
+  flex-wrap: wrap;
+}
+.attachType {
+  background: var(--bg5);
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+/* Shared */
+.convLink {
+  font-size: 11px;
+  color: var(--violet);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}
+.convLink:hover { text-decoration: underline; }

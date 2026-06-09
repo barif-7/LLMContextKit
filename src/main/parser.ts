@@ -20,17 +20,20 @@ export interface ParseResult {
   durationMs: number
 }
 
+export interface ParseOptions {
+  merge?: boolean
+}
+
 export async function parseConversations(
   data: unknown,
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
+  opts?: ParseOptions
 ): Promise<ParseResult> {
   const start = Date.now()
   const db = getDB()
+  const merge = opts?.merge ?? false
 
-  // Accept both array format and { conversations: [...] } wrapper
-  const rawConvs: any[] = Array.isArray(data)
-    ? data
-    : (data as any)?.conversations ?? []
+  const rawConvs: any[] = normalizeConversations(data)
 
   let totalMessages = 0
   let skipped = 0
@@ -58,17 +61,52 @@ export async function parseConversations(
     VALUES (@message_id, @lang, @code, @position)
   `)
 
-  // Clear existing data before reimport
-  db.exec(`DELETE FROM attachment_contents; DELETE FROM code_blocks; DELETE FROM messages; DELETE FROM conversations;`)
+  const insertAttachment = db.prepare(`
+    INSERT INTO attachments (message_id, conv_id, type, asset_pointer, name, mime_type, width, height, size_bytes)
+    VALUES (@message_id, @conv_id, @type, @asset_pointer, @name, @mime_type, @width, @height, @size_bytes)
+  `)
+
+  const insertLink = db.prepare(`
+    INSERT INTO links (message_id, conv_id, url, domain, title)
+    VALUES (@message_id, @conv_id, @url, @domain, @title)
+  `)
+
+  const insertMemory = db.prepare(`
+    INSERT INTO memories (message_id, conv_id, text, create_time)
+    VALUES (@message_id, @conv_id, @text, @create_time)
+  `)
+
+  const tableExists = (name: string) =>
+    !!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name)
+
+  if (!merge) {
+    if (tableExists('message_embeddings')) db.exec(`DELETE FROM message_embeddings;`)
+    db.exec(`DELETE FROM attachment_contents; DELETE FROM code_blocks; DELETE FROM attachments; DELETE FROM links; DELETE FROM memories; DELETE FROM messages; DELETE FROM conversations;`)
+  } else {
+    const ids = rawConvs.map((c: any) => c?.id ?? c?.conversation_id).filter(Boolean)
+    if (ids.length) {
+      const placeholders = ids.map(() => '?').join(',')
+      if (tableExists('message_embeddings')) {
+        db.prepare(`DELETE FROM message_embeddings WHERE conversation_id IN (${placeholders})`).run(...ids)
+      }
+      db.prepare(`DELETE FROM code_blocks WHERE message_id IN (SELECT id FROM messages WHERE conv_id IN (${placeholders}))`).run(...ids)
+      db.prepare(`DELETE FROM attachment_contents WHERE message_id IN (SELECT id FROM messages WHERE conv_id IN (${placeholders}))`).run(...ids)
+      db.prepare(`DELETE FROM attachments WHERE conv_id IN (${placeholders})`).run(...ids)
+      db.prepare(`DELETE FROM links WHERE conv_id IN (${placeholders})`).run(...ids)
+      db.prepare(`DELETE FROM memories WHERE conv_id IN (${placeholders})`).run(...ids)
+      db.prepare(`DELETE FROM messages WHERE conv_id IN (${placeholders})`).run(...ids)
+      db.prepare(`DELETE FROM conversations WHERE id IN (${placeholders})`).run(...ids)
+    }
+  }
 
   const importAll = db.transaction(() => {
     for (let ci = 0; ci < rawConvs.length; ci++) {
       const conv = rawConvs[ci]
       if (!conv || typeof conv !== 'object') continue
 
-      const convId: string = conv.id ?? `conv_${ci}`
-      const convTitle: string = conv.title || 'Untitled conversation'
-      const currentNode: string = conv.current_node ?? ''
+      const convId: string = conv.id ?? conv.conversation_id ?? conv.conversationId ?? `conv_${ci}`
+      const convTitle: string = conv.title || conv.name || 'Untitled conversation'
+      const currentNode: string = conv.current_node ?? conv.currentNode ?? ''
 
       insertConv.run({
         id: convId,
@@ -90,7 +128,6 @@ export async function parseConversations(
         }
       }
 
-      // Find root(s): nodes with no parent
       const roots = Object.keys(mapping).filter(
         (id) => !mapping[id].parent || !mapping[mapping[id].parent]
       )
@@ -103,8 +140,6 @@ export async function parseConversations(
         cursor = mapping[cursor].parent ?? ''
       }
 
-      // Some exports can omit current_node. Fall back to the deepest leaf so
-      // default "active branch only" searches still show imported messages.
       if (activePath.size === 0) {
         const parentIds = new Set(Object.values(children).flat())
         const leaves = Object.keys(mapping).filter((id) => !children[id]?.length)
@@ -140,14 +175,12 @@ export async function parseConversations(
 
         const msg = node.message
         if (!msg) {
-          // Null message node — still traverse children
           pushChildren(nodeId, depth)
           continue
         }
 
         const role: string = msg.author?.role ?? 'unknown'
 
-        // Skip system and tool-scaffolding messages (keep tool *output* if it has text)
         if (role === 'system') {
           skipped++
           pushChildren(nodeId, depth)
@@ -155,9 +188,25 @@ export async function parseConversations(
         }
 
         // ── Extract content ──────────────────────────────────────────────────
-        const { text, hasImage, hasAudio, codeBlocks } = extractContent(msg.content)
+        const { text, hasImage, hasAudio, codeBlocks, attachments, links } = extractContent(msg.content)
 
-        // Skip totally empty messages
+        // Also extract file attachments from metadata.attachments
+        if (msg.metadata && Array.isArray(msg.metadata.attachments)) {
+          for (const att of msg.metadata.attachments) {
+            if (!att) continue
+            const mime = att.mime_type ?? ''
+            if (mime && !mime.startsWith('image/')) {
+              attachments.push({
+                type: 'file',
+                asset_pointer: att.id ?? null,
+                name: att.name ?? att.file_name ?? null,
+                mime_type: mime,
+                size_bytes: att.size ?? null,
+              })
+            }
+          }
+        }
+
         if (!text && !hasImage && !hasAudio && codeBlocks.length === 0) {
           skipped++
           pushChildren(nodeId, depth)
@@ -166,9 +215,10 @@ export async function parseConversations(
 
         const wordCount = text ? text.split(/\s+/).filter(Boolean).length : 0
         const langs = [...new Set(codeBlocks.map((c) => c.lang).filter(Boolean))]
+        const msgId = msg.id ?? nodeId
 
         insertMsg.run({
-          id: msg.id ?? nodeId,
+          id: msgId,
           conv_id: convId,
           parent_id: node.parent ?? null,
           role,
@@ -188,16 +238,48 @@ export async function parseConversations(
 
         codeBlocks.forEach((cb, i) => {
           insertCode.run({
-            message_id: msg.id ?? nodeId,
+            message_id: msgId,
             lang: cb.lang,
             code: cb.code,
             position: i,
           })
         })
 
-        totalMessages++
+        attachments.forEach((att) => {
+          insertAttachment.run({
+            message_id: msgId,
+            conv_id: convId,
+            type: att.type,
+            asset_pointer: att.asset_pointer ?? null,
+            name: att.name ?? null,
+            mime_type: att.mime_type ?? null,
+            width: att.width ?? null,
+            height: att.height ?? null,
+            size_bytes: att.size_bytes ?? null,
+          })
+        })
 
-        // Push children onto stack
+        links.forEach((link) => {
+          insertLink.run({
+            message_id: msgId,
+            conv_id: convId,
+            url: link.url,
+            domain: link.domain,
+            title: link.title ?? null,
+          })
+        })
+
+        // Memory writes: assistant messages sent to the "bio" tool
+        if (msg.recipient === 'bio' && text) {
+          insertMemory.run({
+            message_id: msgId,
+            conv_id: convId,
+            text,
+            create_time: msg.create_time ?? null,
+          })
+        }
+
+        totalMessages++
         pushChildren(nodeId, depth)
       }
 
@@ -207,7 +289,6 @@ export async function parseConversations(
 
   importAll()
 
-  // Rebuild FTS index after bulk insert (faster than trigger-per-row)
   db.exec(`INSERT INTO messages_fts(messages_fts) VALUES('rebuild')`)
   db.exec(`INSERT INTO attachment_contents_fts(attachment_contents_fts) VALUES('rebuild')`)
 
@@ -222,28 +303,57 @@ export async function parseConversations(
 // ── Content extraction ────────────────────────────────────────────────────────
 
 interface CodeBlock { lang: string; code: string }
+interface AttachmentMeta {
+  type: string
+  asset_pointer?: string | null
+  name?: string | null
+  mime_type?: string | null
+  width?: number | null
+  height?: number | null
+  size_bytes?: number | null
+}
+interface LinkMeta { url: string; domain: string; title: string | null }
 interface Extracted {
   text: string
   hasImage: boolean
   hasAudio: boolean
   codeBlocks: CodeBlock[]
+  attachments: AttachmentMeta[]
+  links: LinkMeta[]
 }
 
 const CODE_FENCE_RE = /```(\w*)\r?\n?([\s\S]*?)```/g
+const URL_RE = /https?:\/\/[^\s<>"')\]},;]+/g
+
+function extractLinks(text: string): LinkMeta[] {
+  if (!text) return []
+  const stripped = text.replace(CODE_FENCE_RE, '')
+  const seen = new Set<string>()
+  const links: LinkMeta[] = []
+  let m: RegExpExecArray | null
+  URL_RE.lastIndex = 0
+  while ((m = URL_RE.exec(stripped)) !== null) {
+    let url = m[0].replace(/[.)]+$/, '')
+    if (seen.has(url)) continue
+    seen.add(url)
+    let domain = ''
+    try { domain = new URL(url).hostname.replace(/^www\./, '') } catch { domain = '' }
+    links.push({ url, domain, title: null })
+  }
+  return links
+}
 
 function extractContent(content: any): Extracted {
   let text = ''
   let hasImage = false
   let hasAudio = false
+  const attachments: AttachmentMeta[] = []
 
-  if (!content) return { text, hasImage, hasAudio, codeBlocks: [] }
+  if (!content) return { text, hasImage, hasAudio, codeBlocks: [], attachments, links: [] }
 
-  // Simple string content (older format)
   if (typeof content === 'string') {
     text = content
-  }
-  // Structured content with parts array
-  else if (Array.isArray(content.parts)) {
+  } else if (Array.isArray(content.parts)) {
     const textParts: string[] = []
     for (const part of content.parts) {
       if (typeof part === 'string') {
@@ -252,27 +362,57 @@ function extractContent(content: any): Extracted {
         const ct: string = part.content_type ?? ''
         if (ct === 'image_asset_pointer' || ct === 'image' || part.asset_pointer || part.fovea_id) {
           hasImage = true
-        } else if (ct === 'audio_asset_pointer' || ct === 'audio') {
+          attachments.push({
+            type: 'image',
+            asset_pointer: part.asset_pointer ?? null,
+            width: part.width ?? null,
+            height: part.height ?? null,
+            size_bytes: part.size_bytes ?? null,
+          })
+        } else if (ct === 'audio_asset_pointer' || ct === 'audio' || ct === 'audio_transcription') {
           hasAudio = true
+          if (typeof part.text === 'string' && part.text.trim()) textParts.push(part.text)
+          if (typeof part.transcription === 'string' && part.transcription.trim()) textParts.push(part.transcription)
+          if (typeof part.word_transcription === 'string' && part.word_transcription.trim()) {
+            textParts.push(part.word_transcription)
+          }
+        } else if (ct === 'real_time_user_audio_video_asset_pointer') {
+          hasAudio = true
+          const nestedAudio = part.audio_asset_pointer
+          if (nestedAudio && typeof nestedAudio === 'object') {
+            const nestedMeta = nestedAudio.metadata
+            if (typeof nestedMeta?.transcription === 'string' && nestedMeta.transcription.trim()) {
+              textParts.push(nestedMeta.transcription)
+            }
+            if (typeof nestedMeta?.word_transcription === 'string' && nestedMeta.word_transcription.trim()) {
+              textParts.push(nestedMeta.word_transcription)
+            }
+          }
+        } else if (ct === 'file' || ct === 'document' || (part.name && part.mime_type)) {
+          attachments.push({
+            type: 'file',
+            asset_pointer: part.asset_pointer ?? null,
+            name: part.name ?? null,
+            mime_type: part.mime_type ?? null,
+            size_bytes: part.size_bytes ?? null,
+          })
         } else if (ct === 'tether_quote' || ct === 'tether_browsing_display') {
-          // Browsing tool output — include the title/text if present
           if (part.result) textParts.push(String(part.result))
           if (part.title) textParts.push('[browsed: ' + part.title + ']')
         } else if (ct === 'code' && part.text) {
           textParts.push('```' + (part.language ?? '') + '\n' + part.text + '\n```')
         } else if (part.text) {
           textParts.push(String(part.text))
+        } else if (typeof part.transcription === 'string') {
+          textParts.push(part.transcription)
         }
       }
     }
     text = textParts.join('\n').trim()
-  }
-  // Fallback: try .text field directly
-  else if (typeof content.text === 'string') {
+  } else if (typeof content.text === 'string') {
     text = content.text
   }
 
-  // Extract code blocks from the assembled text
   const codeBlocks: CodeBlock[] = []
   let match: RegExpExecArray | null
   CODE_FENCE_RE.lastIndex = 0
@@ -280,5 +420,20 @@ function extractContent(content: any): Extracted {
     codeBlocks.push({ lang: match[1].trim() || 'text', code: match[2].trim() })
   }
 
-  return { text, hasImage, hasAudio, codeBlocks }
+  const links = extractLinks(text)
+
+  return { text, hasImage, hasAudio, codeBlocks, attachments, links }
+}
+
+function normalizeConversations(data: unknown): any[] {
+  if (Array.isArray(data)) return data
+  if (!data || typeof data !== 'object') return []
+
+  const obj = data as Record<string, unknown>
+  if (Array.isArray(obj.conversations)) return obj.conversations as any[]
+  if (Array.isArray(obj.data)) return obj.data as any[]
+  if (Array.isArray(obj.items)) return obj.items as any[]
+  if ('mapping' in obj || 'current_node' in obj) return [obj]
+
+  return []
 }

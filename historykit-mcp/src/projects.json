@@ -1,0 +1,25 @@
+{
+  "_comment": "Hand-editable project registry. Add projects as top-level keys; each project value is { \"aliases\": [distinctive terms from conversations], \"repo\": \"optional owner/repo or path\" }. Keys starting with _ are ignored.",
+  "dev-music-service": {
+    "aliases": [
+      "dev music",
+      "music service",
+      "music bench",
+      "cosyvoice",
+      "ollama",
+      "qwen"
+    ],
+    "repo": "dev-music-service"
+  },
+  "historykit": {
+    "aliases": [
+      "HistoryKit",
+      "LLMContextKit",
+      "historykit-mcp",
+      "ChatGPT export",
+      "Claude export",
+      "FTS5"
+    ],
+    "repo": "barif-7/LLMContextKit"
+  }
+}

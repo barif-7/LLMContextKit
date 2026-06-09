@@ -1,0 +1,153 @@
+.view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 16px 20px 0;
+  flex-shrink: 0;
+}
+.title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--t1);
+  letter-spacing: -0.3px;
+}
+.count {
+  font-size: 12px;
+  color: var(--t4);
+  font-family: var(--font-mono);
+}
+
+.filters {
+  padding: 12px 20px;
+  flex-shrink: 0;
+}
+
+.searchWrap {
+  position: relative;
+  max-width: 360px;
+}
+.searchIcon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--t4);
+  pointer-events: none;
+}
+.searchInput {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--b1);
+  border-radius: var(--r);
+  padding: 8px 12px 8px 32px;
+  color: var(--t1);
+  font-size: 13px;
+  outline: none;
+}
+.searchInput:focus { border-color: var(--violet); }
+.searchInput::placeholder { color: var(--t4); }
+
+.clearBtn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--bg5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--t3);
+  transition: all 0.12s;
+}
+.clearBtn:hover { background: var(--b2); color: var(--t1); }
+
+.timeline {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 20px 20px;
+}
+
+.empty {
+  text-align: center;
+  color: var(--t3);
+  padding: 40px;
+  font-size: 14px;
+}
+
+.group {
+  margin-bottom: 8px;
+}
+
+.monthHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0 6px;
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 1;
+}
+.monthLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--t2);
+}
+.monthCount {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--t4);
+  background: var(--bg4);
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+.convList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.convCard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--b1);
+  background: var(--bg2);
+  text-align: left;
+  transition: all 0.12s;
+}
+.convCard:hover {
+  border-color: var(--b2);
+  background: var(--bg3);
+}
+
+.convTitle {
+  font-size: 13px;
+  color: var(--t1);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.convMeta {
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--t4);
+  font-family: var(--font-mono);
+}

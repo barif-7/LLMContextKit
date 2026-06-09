@@ -2,10 +2,16 @@
   padding: 12px 16px;
   border-bottom: 1px solid var(--b1);
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 8px;
   flex-shrink: 0;
   background: var(--bg2);
+}
+
+.inputRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .inputWrap {
@@ -60,11 +66,48 @@
   flex-shrink: 0;
 }
 
+.scopeTabs {
+  display: flex;
+  gap: 2px;
+  background: var(--bg3);
+  border-radius: var(--r);
+  padding: 2px;
+  border: 1px solid var(--b1);
+}
+.scopeTab {
+  padding: 5px 12px;
+  border-radius: calc(var(--r) - 2px);
+  font-size: 12px;
+  color: var(--t3);
+  transition: all 0.12s;
+}
+.scopeTab:hover { color: var(--t1); }
+.scopeTab.scopeActive {
+  background: var(--violet-dim);
+  color: var(--violet);
+}
+
+.convFilter {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: var(--r);
+  background: var(--violet-dim);
+  color: var(--violet);
+  font-size: 11px;
+  border: 1px solid rgba(139,124,248,0.3);
+  transition: all 0.12s;
+}
+.convFilter:hover { background: rgba(139,124,248,0.2); }
+
+.spacer { flex: 1; }
+
 .toggle {
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 7px 12px;
+  padding: 7px;
   border-radius: var(--r);
   border: 1px solid var(--b1);
   background: var(--bg3);

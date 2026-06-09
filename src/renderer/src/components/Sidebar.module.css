@@ -40,14 +40,6 @@
   gap: 6px;
 }
 
-.convCount {
-  background: var(--bg4);
-  border-radius: 10px;
-  padding: 1px 6px;
-  font-size: 10px;
-  color: var(--t3);
-}
-
 .navBtn {
   display: flex;
   align-items: center;
@@ -62,65 +54,53 @@
 }
 .navBtn:hover { background: var(--bg4); color: var(--t1); }
 .navBtn.active { background: var(--violet-dim); color: var(--violet); }
-.navBtn.active .badge { background: rgba(139,124,248,0.2); color: var(--violet); }
 
 .navIcon { display: flex; align-items: center; flex-shrink: 0; opacity: 0.75; }
 .navBtn.active .navIcon { opacity: 1; }
 .navLabel { flex: 1; }
-.badge {
-  font-size: 10px;
-  font-family: var(--font-mono);
-  background: var(--bg5);
-  border-radius: 10px;
-  padding: 1px 6px;
-  color: var(--t3);
-}
 
-.convSection {
+.statsSection {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
   padding: 12px 10px 0;
   border-top: 1px solid var(--b1);
+  overflow: hidden;
 }
 
-.convList {
-  flex: 1;
-  overflow-y: auto;
-  margin-top: 6px;
-  padding-bottom: 8px;
+.statGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 0 4px;
 }
 
-.convItem {
+.statItem {
   display: flex;
-  align-items: center;
-  width: 100%;
+  flex-direction: column;
   padding: 6px 8px;
   border-radius: var(--r-sm);
-  font-size: 12px;
-  color: var(--t3);
-  transition: all 0.12s;
-  text-align: left;
-  gap: 6px;
+  background: var(--bg3);
 }
-.convItem:hover { background: var(--bg4); color: var(--t2); }
-.convItem.activeConv { background: var(--violet-dim); color: var(--violet); }
+.statValue {
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color: var(--t1);
+}
+.statLabel {
+  font-size: 10px;
+  color: var(--t4);
+  margin-top: 1px;
+}
 
-.convTitle {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  line-height: 1.4;
+.sourceBreakdown {
+  display: flex;
+  gap: 10px;
+  padding: 8px 8px 0;
 }
-.convMsgs {
+.sourceBadge {
   font-size: 10px;
   font-family: var(--font-mono);
-  color: var(--t4);
-  flex-shrink: 0;
 }
-.convItem.activeConv .convMsgs { color: rgba(139,124,248,0.6); }
 
 .footer {
   padding: 12px 12px 14px;
@@ -131,8 +111,7 @@
   flex-shrink: 0;
 }
 
-.reimportBtn,
-.mcpBtn {
+.actionBtn {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -143,21 +122,7 @@
   border: 1px solid var(--b1);
   transition: all 0.12s;
 }
-.reimportBtn:hover,
-.mcpBtn:hover {
+.actionBtn:hover {
   border-color: var(--b2);
   color: var(--t2);
-}
-
-.mcpBtn.mcpActive {
-  border-color: rgba(45,212,191,0.35);
-  background: var(--teal-dim);
-  color: var(--teal);
-}
-
-.footerStat {
-  font-size: 11px;
-  color: var(--t4);
-  font-family: var(--font-mono);
-  margin-left: auto;
 }

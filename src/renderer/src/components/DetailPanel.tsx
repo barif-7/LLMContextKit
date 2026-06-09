@@ -5,12 +5,14 @@ import styles from './DetailPanel.module.css'
 interface Props {
   message: Message
   onClose: () => void
+  onConvOpen: (convId: string) => void
 }
 
 interface ThreadMsg {
   id: string
   role: string
   text: string
+  source: string
   create_time: number | null
   has_code: number
   has_image: number
@@ -51,7 +53,7 @@ function fmtDate(ts: number | null): string {
   })
 }
 
-export function DetailPanel({ message, onClose }: Props) {
+export function DetailPanel({ message, onClose, onConvOpen }: Props) {
   const [thread, setThread] = useState<ThreadMsg[]>([])
   const [codeBlocks, setCodeBlocks] = useState<CodeBlock[]>([])
   const [tab, setTab] = useState<'context' | 'code'>('context')
@@ -104,7 +106,12 @@ export function DetailPanel({ message, onClose }: Props) {
           <div className={styles.metaCard}>
             <div className={styles.metaRow}>
               <span className={styles.metaKey}>Conversation</span>
-              <span className={styles.metaVal}>{message.conv_title || 'Untitled'}</span>
+              <button
+                className={`${styles.metaVal} ${styles.convLink}`}
+                onClick={() => onConvOpen(message.conv_id)}
+              >
+                {message.conv_title || 'Untitled'}
+              </button>
             </div>
             <div className={styles.metaRow}>
               <span className={styles.metaKey}>Date</span>
@@ -149,7 +156,7 @@ export function DetailPanel({ message, onClose }: Props) {
                     ${m.id === message.id ? styles.highlighted : ''}`}
                 >
                   <div className={styles.threadRole}>
-                    {m.role === 'user' ? 'You' : 'ChatGPT'}
+                    {m.role === 'user' ? 'You' : m.source === 'claude' ? 'Claude' : 'ChatGPT'}
                     {m.create_time && <span className={styles.threadTime}>{fmtDate(m.create_time)}</span>}
                     {m.is_active_branch === 0 && <span className={styles.branchBadge}>branch</span>}
                   </div>

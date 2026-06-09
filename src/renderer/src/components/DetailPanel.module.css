@@ -225,6 +225,14 @@
   overflow-y: auto;
 }
 
+.convLink {
+  color: var(--violet);
+  cursor: pointer;
+  text-align: left;
+  transition: opacity 0.12s;
+}
+.convLink:hover { opacity: 0.8; }
+
 .loading {
   font-size: 13px;
   color: var(--t4);
