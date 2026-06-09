@@ -119,6 +119,163 @@ function collectJsonFiles(dir: string): string[] {
   return results
 }
 
+function isClaudeMemoriesExport(data: unknown): boolean {
+  return Array.isArray(data) && data.some((item: any) => typeof item?.conversations_memory === 'string')
+}
+
+function isClaudeProjectExport(data: unknown): boolean {
+  return !!data && typeof data === 'object' && Array.isArray((data as any).docs)
+}
+
+function importClaudeMemories(data: unknown) {
+  if (!isClaudeMemoriesExport(data)) return { conversations: 0, messages: 0, skipped: 0 }
+  const db = getDB()
+  const rows = data as Array<{ conversations_memory?: string; account_uuid?: string }>
+
+  const insertConv = db.prepare(`
+    INSERT OR REPLACE INTO conversations (id, title, create_time, update_time, current_node, source)
+    VALUES (@id, @title, @create_time, @update_time, @current_node, 'claude')
+  `)
+  const insertMsg = db.prepare(`
+    INSERT OR REPLACE INTO messages
+      (id, conv_id, parent_id, role, text, word_count, has_code, has_image, has_audio,
+       code_langs, create_time, model, finish_reason, branch_index, is_active_branch, depth, source)
+    VALUES
+      (@id, @conv_id, NULL, 'system', @text, @word_count, 0, 0, 0,
+       NULL, @create_time, NULL, NULL, 0, 1, @depth, 'claude')
+  `)
+  const insertMemory = db.prepare(`
+    INSERT INTO memories (message_id, conv_id, text, create_time)
+    VALUES (@message_id, @conv_id, @text, @create_time)
+  `)
+
+  let messages = 0
+  let skipped = 0
+  const now = Date.now() / 1000
+
+  db.transaction(() => {
+    for (let i = 0; i < rows.length; i++) {
+      const text = rows[i]?.conversations_memory?.trim()
+      if (!text) {
+        skipped++
+        continue
+      }
+      const convId = `claude_memory_${rows[i].account_uuid ?? i}`
+      const msgId = `${convId}_${i}`
+      db.prepare(`DELETE FROM memories WHERE conv_id = ?`).run(convId)
+      db.prepare(`DELETE FROM messages WHERE conv_id = ?`).run(convId)
+      insertConv.run({
+        id: convId,
+        title: 'Claude Memories',
+        create_time: now,
+        update_time: now,
+        current_node: msgId,
+      })
+      insertMsg.run({
+        id: msgId,
+        conv_id: convId,
+        text,
+        word_count: text.split(/\s+/).filter(Boolean).length,
+        create_time: now,
+        depth: i,
+      })
+      insertMemory.run({ message_id: msgId, conv_id: convId, text, create_time: now })
+      messages++
+    }
+  })()
+
+  db.exec(`INSERT INTO messages_fts(messages_fts) VALUES('rebuild')`)
+  return { conversations: messages > 0 ? 1 : 0, messages, skipped }
+}
+
+function importClaudeProjectDocs(data: unknown) {
+  if (!isClaudeProjectExport(data)) return { conversations: 0, messages: 0, skipped: 0 }
+  const db = getDB()
+  const project = data as any
+  const docs = project.docs as any[]
+  const convId = `claude_project_${project.uuid ?? project.name ?? 'unknown'}`
+  const projectName = project.name ?? 'Claude Project'
+  const createdAt = Date.parse(project.created_at) / 1000 || Date.now() / 1000
+  const updatedAt = Date.parse(project.updated_at) / 1000 || createdAt
+
+  const insertConv = db.prepare(`
+    INSERT OR REPLACE INTO conversations (id, title, create_time, update_time, current_node, source)
+    VALUES (@id, @title, @create_time, @update_time, @current_node, 'claude')
+  `)
+  const insertMsg = db.prepare(`
+    INSERT OR REPLACE INTO messages
+      (id, conv_id, parent_id, role, text, word_count, has_code, has_image, has_audio,
+       code_langs, create_time, model, finish_reason, branch_index, is_active_branch, depth, source)
+    VALUES
+      (@id, @conv_id, NULL, 'system', @text, @word_count, @has_code, 0, 0,
+       @code_langs, @create_time, NULL, NULL, 0, 1, @depth, 'claude')
+  `)
+  const insertAttachmentContent = db.prepare(`
+    INSERT INTO attachment_contents (message_id, file_name, file_type, file_size, content)
+    VALUES (@message_id, @file_name, @file_type, NULL, @content)
+  `)
+  const insertDesignFile = db.prepare(`
+    INSERT INTO claude_design_files
+      (conv_id, message_id, project_uuid, project_name, file_path, file_name, file_type, operation, source_kind, content, hidden, created_at)
+    VALUES
+      (@conv_id, @message_id, @project_uuid, @project_name, @file_path, @file_name, @file_type, 'project_doc', 'project_doc', @content, 0, @created_at)
+  `)
+
+  let messages = 0
+  let skipped = 0
+  db.transaction(() => {
+    db.prepare(`DELETE FROM attachment_contents WHERE message_id IN (SELECT id FROM messages WHERE conv_id = ?)`).run(convId)
+    db.prepare(`DELETE FROM claude_design_files WHERE conv_id = ?`).run(convId)
+    db.prepare(`DELETE FROM messages WHERE conv_id = ?`).run(convId)
+    const currentNode = docs.length ? `${convId}_${docs[docs.length - 1]?.uuid ?? docs.length - 1}` : ''
+    insertConv.run({
+      id: convId,
+      title: `Claude Project: ${projectName}`,
+      create_time: createdAt,
+      update_time: updatedAt,
+      current_node: currentNode,
+    })
+    docs.forEach((doc, i) => {
+      const content = typeof doc?.content === 'string' ? doc.content : ''
+      const fileName = doc?.filename ?? `project-doc-${i + 1}.md`
+      if (!content.trim()) {
+        skipped++
+        return
+      }
+      const msgId = `${convId}_${doc?.uuid ?? i}`
+      const fileType = fileName.includes('.') ? fileName.slice(fileName.lastIndexOf('.') + 1).toLowerCase() : 'md'
+      insertMsg.run({
+        id: msgId,
+        conv_id: convId,
+        text: content,
+        word_count: content.split(/\s+/).filter(Boolean).length,
+        has_code: /```/.test(content) ? 1 : 0,
+        code_langs: /```/.test(content) ? JSON.stringify(['markdown']) : null,
+        create_time: Date.parse(doc?.created_at) / 1000 || createdAt,
+        depth: i,
+      })
+      insertAttachmentContent.run({ message_id: msgId, file_name: fileName, file_type: fileType, content })
+      insertDesignFile.run({
+        conv_id: convId,
+        message_id: msgId,
+        project_uuid: project.uuid ?? null,
+        project_name: projectName,
+        file_path: fileName,
+        file_name: fileName,
+        file_type: fileType,
+        content,
+        created_at: Date.parse(doc?.created_at) / 1000 || createdAt,
+      })
+      messages++
+    })
+  })()
+
+  db.exec(`INSERT INTO messages_fts(messages_fts) VALUES('rebuild')`)
+  db.exec(`INSERT INTO attachment_contents_fts(attachment_contents_fts) VALUES('rebuild')`)
+  db.exec(`INSERT INTO claude_design_files_fts(claude_design_files_fts) VALUES('rebuild')`)
+  return { conversations: messages > 0 ? 1 : 0, messages, skipped }
+}
+
 async function importFolder(folderPath: string) {
   const jsonFiles = collectJsonFiles(folderPath)
   if (jsonFiles.length === 0) {
@@ -174,6 +331,24 @@ async function importFolder(folderPath: string) {
     try {
       const raw = fs.readFileSync(filePath, 'utf-8')
       const data = JSON.parse(raw)
+      if (isClaudeMemoriesExport(data)) {
+        console.log(`[import:folder] ${path.relative(folderPath, filePath)} format=claude-memories`)
+        const result = importClaudeMemories(data)
+        totalConvs += result.conversations
+        totalMsgs += result.messages
+        totalSkipped += result.skipped
+        filesProcessed++
+        continue
+      }
+      if (isClaudeProjectExport(data)) {
+        console.log(`[import:folder] ${path.relative(folderPath, filePath)} format=claude-project`)
+        const result = importClaudeProjectDocs(data)
+        totalConvs += result.conversations
+        totalMsgs += result.messages
+        totalSkipped += result.skipped
+        filesProcessed++
+        continue
+      }
       const format = detectFormat(data)
       if (format === 'unknown') {
         filesSkipped++
@@ -537,6 +712,115 @@ ipcMain.handle('memories:list', async () => {
   `).all()
 })
 
+// ── IPC: Claude Design Files ────────────────────────────────────────────────
+
+ipcMain.handle('claude:designProjects', async () => {
+  const db = getDB()
+  return db.prepare(`
+    SELECT
+      COALESCE(project_uuid, '') AS project_uuid,
+      COALESCE(project_name, 'Unassigned') AS project_name,
+      COUNT(*) AS file_events,
+      COUNT(DISTINCT file_path) AS file_count,
+      COUNT(DISTINCT conv_id) AS conversation_count,
+      MAX(created_at) AS last_activity
+    FROM claude_design_files
+    GROUP BY COALESCE(project_uuid, ''), COALESCE(project_name, 'Unassigned')
+    ORDER BY last_activity DESC
+  `).all()
+})
+
+ipcMain.handle('claude:designFiles', async (_event, params: {
+  projectName?: string
+  operation?: string
+  filePath?: string
+  query?: string
+  limit?: number
+  offset?: number
+}) => {
+  const db = getDB()
+  let sql = `
+    SELECT
+      df.id, df.conv_id, df.message_id, df.project_uuid, df.project_name,
+      df.file_path, df.file_name, df.file_type, df.operation, df.source_kind,
+      df.content, df.hidden, df.created_at,
+      c.title AS conv_title,
+      c.update_time AS conv_updated,
+      m.role,
+      m.text AS message_text
+    FROM claude_design_files df
+    LEFT JOIN conversations c ON c.id = df.conv_id
+    LEFT JOIN messages m ON m.id = df.message_id
+    WHERE 1=1
+  `
+  const args: any[] = []
+  if (params?.projectName && params.projectName !== 'all') {
+    sql += ` AND COALESCE(df.project_name, 'Unassigned') = ?`
+    args.push(params.projectName)
+  }
+  if (params?.operation && params.operation !== 'all') {
+    sql += ` AND df.operation = ?`
+    args.push(params.operation)
+  }
+  if (params?.filePath) {
+    sql += ` AND df.file_path = ?`
+    args.push(params.filePath)
+  }
+  if (params?.query?.trim()) {
+    const q = `%${params.query.trim()}%`
+    sql += ` AND (
+      df.file_path LIKE ?
+      OR df.file_name LIKE ?
+      OR df.project_name LIKE ?
+      OR df.content LIKE ?
+      OR c.title LIKE ?
+      OR m.text LIKE ?
+    )`
+    args.push(q, q, q, q, q, q)
+  }
+  sql += ` ORDER BY COALESCE(df.created_at, c.update_time, 0) DESC, df.id DESC`
+  const limit = Math.min(params?.limit ?? 300, 1000)
+  const offset = params?.offset ?? 0
+  sql += ` LIMIT ${limit} OFFSET ${offset}`
+  return db.prepare(sql).all(...args)
+})
+
+ipcMain.handle('claude:fileTree', async (_event, params: {
+  projectName?: string
+  query?: string
+  limit?: number
+}) => {
+  const db = getDB()
+  let sql = `
+    SELECT
+      COALESCE(project_name, 'Unassigned') AS project_name,
+      file_path,
+      file_name,
+      file_type,
+      MAX(created_at) AS last_activity,
+      COUNT(*) AS event_count,
+      GROUP_CONCAT(DISTINCT operation) AS operations
+    FROM claude_design_files
+    WHERE 1=1
+  `
+  const args: any[] = []
+  if (params?.projectName && params.projectName !== 'all') {
+    sql += ` AND COALESCE(project_name, 'Unassigned') = ?`
+    args.push(params.projectName)
+  }
+  if (params?.query?.trim()) {
+    const q = `%${params.query.trim()}%`
+    sql += ` AND (file_path LIKE ? OR file_name LIKE ? OR content LIKE ? OR project_name LIKE ?)`
+    args.push(q, q, q, q)
+  }
+  sql += `
+    GROUP BY COALESCE(project_name, 'Unassigned'), file_path
+    ORDER BY project_name ASC, file_path ASC
+    LIMIT ${Math.min(params?.limit ?? 1000, 3000)}
+  `
+  return db.prepare(sql).all(...args)
+})
+
 // ── IPC: Shell ───────────────────────────────────────────────────────────────
 
 ipcMain.handle('shell:openExternal', (_event, url: string) => {
@@ -548,7 +832,7 @@ ipcMain.handle('shell:openExternal', (_event, url: string) => {
 ipcMain.handle('db:clear', async () => {
   const db = getDB()
   if (tableExists('message_embeddings')) db.exec(`DELETE FROM message_embeddings;`)
-  db.exec(`DELETE FROM attachment_contents; DELETE FROM code_blocks; DELETE FROM attachments; DELETE FROM links; DELETE FROM memories; DELETE FROM messages; DELETE FROM conversations;`)
+  db.exec(`DELETE FROM claude_design_files; DELETE FROM attachment_contents; DELETE FROM code_blocks; DELETE FROM attachments; DELETE FROM links; DELETE FROM memories; DELETE FROM messages; DELETE FROM conversations;`)
   return { ok: true }
 })
 

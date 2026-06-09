@@ -106,6 +106,25 @@ export function initDB() {
     );
     CREATE INDEX IF NOT EXISTS idx_att_content_msg ON attachment_contents(message_id);
 
+    CREATE TABLE IF NOT EXISTS claude_design_files (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      conv_id        TEXT NOT NULL,
+      message_id     TEXT NOT NULL,
+      project_uuid   TEXT,
+      project_name   TEXT,
+      file_path      TEXT NOT NULL,
+      file_name      TEXT,
+      file_type      TEXT,
+      operation      TEXT NOT NULL,
+      source_kind    TEXT NOT NULL,
+      content        TEXT,
+      hidden         INTEGER NOT NULL DEFAULT 0,
+      created_at     REAL
+    );
+    CREATE INDEX IF NOT EXISTS idx_claude_design_project ON claude_design_files(project_name);
+    CREATE INDEX IF NOT EXISTS idx_claude_design_path ON claude_design_files(file_path);
+    CREATE INDEX IF NOT EXISTS idx_claude_design_conv ON claude_design_files(conv_id);
+
     DROP TRIGGER IF EXISTS messages_ai;
     DROP TRIGGER IF EXISTS messages_ad;
     DROP TRIGGER IF EXISTS messages_au;
@@ -142,6 +161,16 @@ export function initDB() {
       content,
       file_name,
       content=attachment_contents,
+      content_rowid=id,
+      tokenize='porter unicode61'
+    );
+
+    CREATE VIRTUAL TABLE IF NOT EXISTS claude_design_files_fts USING fts5(
+      file_path,
+      file_name,
+      content,
+      project_name,
+      content=claude_design_files,
       content_rowid=id,
       tokenize='porter unicode61'
     );

@@ -29,6 +29,20 @@ declare global {
       listAttachments: (type: string) => Promise<any[]>
       listLinks: () => Promise<any[]>
       listMemories: () => Promise<any[]>
+      claudeDesignProjects: () => Promise<import('./App').ClaudeDesignProject[]>
+      claudeDesignFiles: (params: {
+        projectName?: string
+        operation?: string
+        filePath?: string
+        query?: string
+        limit?: number
+        offset?: number
+      }) => Promise<import('./App').ClaudeDesignFile[]>
+      claudeFileTree: (params: {
+        projectName?: string
+        query?: string
+        limit?: number
+      }) => Promise<import('./App').ClaudeFileTreeItem[]>
       clearDB: () => Promise<{ ok: boolean }>
 
       openExternal: (url: string) => Promise<void>
@@ -40,6 +54,13 @@ declare global {
       syncFlags: () => Promise<import('./App').SyncFlags>
       setSyncFlags: (patch: Partial<import('./App').SyncFlags>) => Promise<import('./App').SyncFlags>
       syncStatus: () => Promise<{ flags: import('./App').SyncFlags; activeRun: { mode: string; startedAt: number } | null }>
+      startChatGPTAuth: () => Promise<{
+        ok: boolean
+        mode: string
+        message?: string
+        error?: string
+      }>
+      chatGPTAuthStatus: () => Promise<import('./App').ChatGPTAuthStatus>
       runSync: (mode: 'chatgpt-extension' | 'chatgpt-native' | 'claude-native') => Promise<{
         ok: boolean
         mode: string

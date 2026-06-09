@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import type { SyncFlags } from '../App'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { ChatGPTAuthStatus, SyncFlags } from '../App'
 import styles from './SyncView.module.css'
 
 type SyncMode = 'chatgpt-extension' | 'chatgpt-native' | 'claude-native'
@@ -26,6 +26,9 @@ export function SyncView({ onSynced }: Props) {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [lastResult, setLastResult] = useState<string | null>(null)
+  const [authStatus, setAuthStatus] = useState<ChatGPTAuthStatus | null>(null)
+  const [authBusy, setAuthBusy] = useState(false)
+  const cancelAuthPoll = useRef(false)
 
   useEffect(() => {
     window.api.syncFlags().then((next) => setFlags(next))
@@ -34,7 +37,15 @@ export function SyncView({ onSynced }: Props) {
         setLastResult(`Active: ${status.activeRun.mode}`)
       }
     })
+    return () => {
+      cancelAuthPoll.current = true
+    }
   }, [])
+
+  useEffect(() => {
+    if (!flags.nativeChatGPT) return
+    void refreshAuthStatus()
+  }, [flags.nativeChatGPT])
 
   const enabledModes = useMemo(() => {
     const modes: SyncMode[] = []
@@ -74,6 +85,63 @@ export function SyncView({ onSynced }: Props) {
     } finally {
       setBusyMode(null)
     }
+  }
+
+  async function refreshAuthStatus() {
+    try {
+      const status = await window.api.chatGPTAuthStatus()
+      setAuthStatus(status)
+      return status
+    } catch (err: any) {
+      const status: ChatGPTAuthStatus = {
+        debugPort: 9222,
+        chromeReachable: false,
+        hasChatGPTTarget: false,
+        authenticated: false,
+        message: err?.message || 'Could not check ChatGPT auth status',
+      }
+      setAuthStatus(status)
+      return status
+    }
+  }
+
+  async function runNativeAuthFlow() {
+    setError(null)
+    setMessage('Opening ChatGPT in debug Chrome...')
+    setAuthBusy(true)
+    cancelAuthPoll.current = false
+
+    try {
+      const started = await window.api.startChatGPTAuth()
+      if (!started.ok) {
+        throw new Error(started.error || started.message || 'Could not open Chrome debug session')
+      }
+
+      for (let attempt = 0; attempt < 90; attempt++) {
+        if (cancelAuthPoll.current) return
+        const status = await refreshAuthStatus()
+        if (status.authenticated) {
+          setMessage('ChatGPT is authenticated. Starting native sync...')
+          setAuthBusy(false)
+          await run('chatgpt-native')
+          return
+        }
+        setMessage(status.message)
+        await new Promise((resolve) => window.setTimeout(resolve, 2000))
+      }
+
+      setError('Timed out waiting for ChatGPT sign-in. Leave the Chrome window open and try again.')
+    } catch (err: any) {
+      setError(err?.message || 'Could not start ChatGPT auth flow')
+    } finally {
+      setAuthBusy(false)
+    }
+  }
+
+  function cancelNativeAuthFlow() {
+    cancelAuthPoll.current = true
+    setAuthBusy(false)
+    setMessage(null)
   }
 
   return (
@@ -137,10 +205,28 @@ export function SyncView({ onSynced }: Props) {
           {flags.nativeChatGPT && (
             <button
               className={styles.primaryBtn}
-              onClick={() => void run('chatgpt-native')}
+              onClick={() => void runNativeAuthFlow()}
+              disabled={busyMode !== null || authBusy}
+            >
+              {busyMode === 'chatgpt-native' ? 'Syncing...' : authBusy ? 'Waiting for Sign In...' : 'Sync ChatGPT Native'}
+            </button>
+          )}
+          {flags.nativeChatGPT && (
+            <button
+              className={styles.secondaryBtn}
+              onClick={() => void refreshAuthStatus()}
+              disabled={busyMode !== null || authBusy}
+            >
+              Check ChatGPT Auth
+            </button>
+          )}
+          {authBusy && (
+            <button
+              className={styles.secondaryBtn}
+              onClick={cancelNativeAuthFlow}
               disabled={busyMode !== null}
             >
-              {busyMode === 'chatgpt-native' ? 'Syncing...' : 'Sync ChatGPT Native'}
+              Stop Waiting
             </button>
           )}
           {flags.nativeClaude && (
@@ -157,6 +243,16 @@ export function SyncView({ onSynced }: Props) {
           )}
         </div>
         {message && <div className={styles.message}>{message}</div>}
+        {flags.nativeChatGPT && authStatus && (
+          <div className={`${styles.authBox} ${authStatus.authenticated ? styles.authOk : ''}`}>
+            <div className={styles.authLine}>
+              <strong>{authStatus.authenticated ? 'Signed in' : authStatus.chromeReachable ? 'Waiting for sign-in' : 'Chrome not connected'}</strong>
+              <span>Port {authStatus.debugPort}</span>
+            </div>
+            <p>{authStatus.message}</p>
+            {authStatus.url && <code>{authStatus.url}</code>}
+          </div>
+        )}
         {lastResult && <div className={styles.hint}>{lastResult}</div>}
         {error && <div className={styles.error}>{error}</div>}
       </section>

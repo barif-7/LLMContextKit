@@ -19,6 +19,14 @@ const NAV_ITEMS: { id: AppView; label: string; icon: React.ReactNode }[] = [
     icon: <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="2" y="2" width="11" height="11" rx="1.5"/><line x1="2" y1="5.5" x2="13" y2="5.5"/><line x1="5.5" y1="5.5" x2="5.5" y2="13"/></svg>,
   },
   {
+    id: 'claudeDesign', label: 'Design Files',
+    icon: <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M3 3h9v3H3zM3 8.5h4v3.5H3zM9 8.5h3v3.5H9z"/></svg>,
+  },
+  {
+    id: 'claudeFiles', label: 'Claude Files',
+    icon: <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M2.5 4.5h4l1 1h5v6.5h-10z"/><path d="M2.5 4.5V3h3.5l1 1.5"/></svg>,
+  },
+  {
     id: 'profile', label: 'Profile',
     icon: <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="7.5" cy="5" r="2.5"/><path d="M3 13c0-2.5 2-4.5 4.5-4.5S12 10.5 12 13"/></svg>,
   },

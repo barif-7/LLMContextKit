@@ -10,12 +10,14 @@ import { BrowseView } from './components/BrowseView'
 import { ProfileView } from './components/ProfileView'
 import { ConversationView } from './components/ConversationView'
 import { SyncView } from './components/SyncView'
+import { ClaudeDesignView } from './components/ClaudeDesignView'
+import { ClaudeFileBrowser } from './components/ClaudeFileBrowser'
 import styles from './App.module.css'
 
 export type SearchScope = 'messages' | 'code' | 'files'
 export type SortOrder = 'newest' | 'oldest' | 'longest' | 'relevance'
 export type SourceFilter = 'all' | 'chatgpt' | 'claude'
-export type AppView = 'search' | 'browse' | 'profile' | 'sync' | 'mcp'
+export type AppView = 'search' | 'browse' | 'claudeDesign' | 'claudeFiles' | 'profile' | 'sync' | 'mcp'
 
 export interface SearchFlags {
   restoreSearchResults: boolean
@@ -26,6 +28,16 @@ export interface SyncFlags {
   browserExtensionChatGPT: boolean
   nativeChatGPT: boolean
   nativeClaude: boolean
+}
+
+export interface ChatGPTAuthStatus {
+  debugPort: number
+  chromeReachable: boolean
+  hasChatGPTTarget: boolean
+  authenticated: boolean
+  title?: string
+  url?: string
+  message: string
 }
 
 export interface Message {
@@ -60,6 +72,45 @@ export interface Conversation {
   create_time: number
   update_time: number
   msg_count: number
+}
+
+export interface ClaudeDesignProject {
+  project_uuid: string
+  project_name: string
+  file_events: number
+  file_count: number
+  conversation_count: number
+  last_activity: number | null
+}
+
+export interface ClaudeDesignFile {
+  id: number
+  conv_id: string
+  message_id: string
+  project_uuid: string | null
+  project_name: string | null
+  file_path: string
+  file_name: string | null
+  file_type: string | null
+  operation: string
+  source_kind: string
+  content: string | null
+  hidden: number
+  created_at: number | null
+  conv_title: string | null
+  conv_updated: number | null
+  role: string | null
+  message_text: string | null
+}
+
+export interface ClaudeFileTreeItem {
+  project_name: string
+  file_path: string
+  file_name: string | null
+  file_type: string | null
+  last_activity: number | null
+  event_count: number
+  operations: string | null
 }
 
 export interface Stats {
@@ -361,6 +412,10 @@ export default function App() {
             conversations={conversations}
             onConvSelect={onConvSelect}
           />
+        ) : view === 'claudeDesign' ? (
+          <ClaudeDesignView onConvSelect={onConvSelect} />
+        ) : view === 'claudeFiles' ? (
+          <ClaudeFileBrowser onConvSelect={onConvSelect} />
         ) : view === 'profile' ? (
           <ProfileView onConvSelect={onConvSelect} />
         ) : (

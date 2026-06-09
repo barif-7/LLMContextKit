@@ -8,6 +8,7 @@
     "mcp:start": "node historykit-mcp/dist/index.js",
     "mcp:install-claude": "node scripts/install-claude-mcp.js",
     "sync:chatgpt": "node scripts/sync-chatgpt-history.mjs",
+    "import:claude": "cross-env ELECTRON_RUN_AS_NODE=1 electron scripts/import-claude-export.mjs",
 
     "dev": "concurrently -n main,vite,electron -c cyan,green,yellow \"npm run compile-main\" \"vite\" \"npm run electron-dev\"",
     "compile-main": "tsc --watch --preserveWatchOutput",

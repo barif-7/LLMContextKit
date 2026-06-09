@@ -10,6 +10,11 @@ export interface ParseResult {
 }
 
 interface ClaudeAttachment {
+  id?: string
+  name?: string
+  type?: string
+  content?: string
+  hidden?: boolean
   file_name?: string
   file_size?: number
   file_type?: string
@@ -27,6 +32,7 @@ interface CodeBlock {
 }
 
 const CODE_FENCE_RE = /```(\w*)\r?\n?([\s\S]*?)```/g
+const URL_RE = /https?:\/\/[^\s<>"')\]},;]+/g
 
 export async function parseClaudeConversations(
   data: unknown,
@@ -61,6 +67,7 @@ export async function parseClaudeConversations(
   const deleteAttachmentContent = db.prepare(`DELETE FROM attachment_contents WHERE message_id = ?`)
   const deleteCodeForConv = db.prepare(`DELETE FROM code_blocks WHERE message_id IN (SELECT id FROM messages WHERE conv_id = ?)`)
   const deleteAttachmentForConv = db.prepare(`DELETE FROM attachment_contents WHERE message_id IN (SELECT id FROM messages WHERE conv_id = ?)`)
+  const deleteDesignFilesForConv = db.prepare(`DELETE FROM claude_design_files WHERE conv_id = ?`)
   const deleteAttachmentsMetaForConv = db.prepare(`DELETE FROM attachments WHERE conv_id = ?`)
   const deleteLinksForConv = db.prepare(`DELETE FROM links WHERE conv_id = ?`)
   const deleteMemoriesForConv = db.prepare(`DELETE FROM memories WHERE conv_id = ?`)
@@ -79,6 +86,23 @@ export async function parseClaudeConversations(
   const insertAttachmentContent = db.prepare(`
     INSERT INTO attachment_contents (message_id, file_name, file_type, file_size, content)
     VALUES (@message_id, @file_name, @file_type, @file_size, @content)
+  `)
+
+  const insertAttachment = db.prepare(`
+    INSERT INTO attachments (message_id, conv_id, type, asset_pointer, name, mime_type, width, height, size_bytes)
+    VALUES (@message_id, @conv_id, @type, @asset_pointer, @name, @mime_type, @width, @height, @size_bytes)
+  `)
+
+  const insertLink = db.prepare(`
+    INSERT INTO links (message_id, conv_id, url, domain, title)
+    VALUES (@message_id, @conv_id, @url, @domain, @title)
+  `)
+
+  const insertDesignFile = db.prepare(`
+    INSERT INTO claude_design_files
+      (conv_id, message_id, project_uuid, project_name, file_path, file_name, file_type, operation, source_kind, content, hidden, created_at)
+    VALUES
+      (@conv_id, @message_id, @project_uuid, @project_name, @file_path, @file_name, @file_type, @operation, @source_kind, @content, @hidden, @created_at)
   `)
 
   const importAll = db.transaction(() => {
@@ -105,6 +129,7 @@ export async function parseClaudeConversations(
       if (deleteEmbeddingsForConv) deleteEmbeddingsForConv.run(convId)
       deleteCodeForConv.run(convId)
       deleteAttachmentForConv.run(convId)
+      deleteDesignFilesForConv.run(convId)
       deleteAttachmentsMetaForConv.run(convId)
       deleteLinksForConv.run(convId)
       deleteMemoriesForConv.run(convId)
@@ -139,13 +164,15 @@ export async function parseClaudeConversations(
 
         const files: ClaudeFile[] = Array.isArray(msg.files) ? msg.files : []
         const codeBlocks = extractCodeBlocks(text)
+        const links = extractLinks(text)
+        const designFiles = extractClaudeDesignFiles(conv, msg, msgId)
         const attachmentContents = allAttachments.filter(
           (a: any): a is ClaudeAttachment & { extracted_content: string } =>
             typeof a?.extracted_content === 'string' && a.extracted_content.trim().length > 0
         )
         const hasImage = files.length > 0 || allAttachments.some((a: any) => (a?.file_type ?? a?.type ?? '').startsWith('image/'))
 
-        if (!text.trim() && codeBlocks.length === 0 && attachmentContents.length === 0 && !hasImage) {
+        if (!text.trim() && codeBlocks.length === 0 && attachmentContents.length === 0 && designFiles.length === 0 && !hasImage) {
           skipped++
           previousMessageId = msgId
           continue
@@ -196,6 +223,34 @@ export async function parseClaudeConversations(
           })
         })
 
+        allAttachments.forEach((attachment: any) => {
+          const name = attachment.file_name ?? attachment.name ?? null
+          const type = inferAttachmentType(attachment)
+          insertAttachment.run({
+            message_id: msgId,
+            conv_id: convId,
+            type,
+            asset_pointer: attachment.id ?? null,
+            name,
+            mime_type: attachment.file_type ?? attachment.type ?? null,
+            width: null,
+            height: null,
+            size_bytes: attachment.file_size ?? null,
+          })
+        })
+
+        links.forEach((link) => {
+          insertLink.run({
+            message_id: msgId,
+            conv_id: convId,
+            url: link.url,
+            domain: link.domain,
+            title: null,
+          })
+        })
+
+        designFiles.forEach((file) => insertDesignFile.run(file))
+
         totalMessages++
         previousMessageId = msgId
       }
@@ -207,6 +262,7 @@ export async function parseClaudeConversations(
   importAll()
   db.exec(`INSERT INTO messages_fts(messages_fts) VALUES('rebuild')`)
   db.exec(`INSERT INTO attachment_contents_fts(attachment_contents_fts) VALUES('rebuild')`)
+  db.exec(`INSERT INTO claude_design_files_fts(claude_design_files_fts) VALUES('rebuild')`)
 
   return {
     conversations: rawConvs.length,
@@ -214,6 +270,193 @@ export async function parseClaudeConversations(
     skipped,
     durationMs: Date.now() - start,
   }
+}
+
+interface LinkMeta {
+  url: string
+  domain: string
+}
+
+interface ClaudeDesignFileRow {
+  conv_id: string
+  message_id: string
+  project_uuid: string | null
+  project_name: string | null
+  file_path: string
+  file_name: string | null
+  file_type: string | null
+  operation: string
+  source_kind: string
+  content: string | null
+  hidden: number
+  created_at: number | null
+}
+
+function extractLinks(text: string): LinkMeta[] {
+  if (!text) return []
+  const stripped = text.replace(CODE_FENCE_RE, '')
+  const seen = new Set<string>()
+  const links: LinkMeta[] = []
+  let match: RegExpExecArray | null
+  URL_RE.lastIndex = 0
+  while ((match = URL_RE.exec(stripped)) !== null) {
+    const url = match[0].replace(/[.)]+$/, '')
+    if (seen.has(url)) continue
+    seen.add(url)
+    let domain = ''
+    try { domain = new URL(url).hostname.replace(/^www\./, '') } catch { domain = '' }
+    links.push({ url, domain })
+  }
+  return links
+}
+
+function inferAttachmentType(attachment: any): string {
+  const fileType = String(attachment?.file_type ?? attachment?.type ?? '').toLowerCase()
+  if (fileType.startsWith('image/')) return 'image'
+  return 'file'
+}
+
+function extractClaudeDesignFiles(conv: any, msg: any, msgId: string): ClaudeDesignFileRow[] {
+  const projectUuid = conv.project?.uuid ?? null
+  const projectName = conv.project?.name ?? null
+  const convId = conv.uuid ?? ''
+  const createdAt = toUnixSeconds(msg.created_at)
+  const rows: ClaudeDesignFileRow[] = []
+
+  const pushRow = (input: {
+    filePath?: string | null
+    fileName?: string | null
+    fileType?: string | null
+    operation: string
+    sourceKind: string
+    content?: string | null
+    hidden?: boolean
+  }) => {
+    const filePath = normalizeFilePath(input.filePath || input.fileName || input.operation)
+    rows.push({
+      conv_id: convId,
+      message_id: msgId,
+      project_uuid: projectUuid,
+      project_name: projectName,
+      file_path: filePath,
+      file_name: input.fileName ?? fileNameFromPath(filePath),
+      file_type: input.fileType ?? inferFileType(filePath),
+      operation: input.operation,
+      source_kind: input.sourceKind,
+      content: input.content ?? null,
+      hidden: input.hidden ? 1 : 0,
+      created_at: createdAt,
+    })
+  }
+
+  const allAttachments = [
+    ...(Array.isArray(msg.attachments) ? msg.attachments : []),
+    ...((Array.isArray(msg.content?.attachments) ? msg.content.attachments : [])),
+  ]
+  allAttachments.forEach((attachment: ClaudeAttachment) => {
+    const name = attachment.file_name ?? attachment.name ?? attachment.id ?? 'attachment'
+    const content = attachment.extracted_content ?? attachment.content ?? null
+    pushRow({
+      filePath: name,
+      fileName: name,
+      fileType: attachment.file_type ?? attachment.type ?? null,
+      operation: 'attachment',
+      sourceKind: 'attachment',
+      content,
+      hidden: attachment.hidden,
+    })
+  })
+
+  const blocks = Array.isArray(msg.content?.contentBlocks) ? msg.content.contentBlocks : []
+  blocks.forEach((block: any) => {
+    if (!block || typeof block !== 'object') return
+    if (block.type === 'tool_call' && block.toolCall) {
+      const tool = block.toolCall
+      const input = tool.input ?? {}
+      const output = typeof tool.output === 'string' ? tool.output : null
+      const name = String(tool.name ?? 'tool_call')
+
+      if (name === 'write_file') {
+        pushRow({
+          filePath: input.path ?? input.asset ?? input.filename,
+          fileName: input.path ? fileNameFromPath(input.path) : input.asset ?? input.filename ?? null,
+          operation: name,
+          sourceKind: 'tool_call',
+          content: typeof input.content === 'string' ? input.content : output,
+        })
+      } else if (name === 'read_file') {
+        pushRow({
+          filePath: input.path,
+          operation: name,
+          sourceKind: 'tool_call',
+          content: output,
+        })
+      } else if (name === 'str_replace_edit' || name === 'edit_file') {
+        pushRow({
+          filePath: input.path,
+          operation: name,
+          sourceKind: 'tool_call',
+          content: typeof input.new_string === 'string' ? input.new_string : output,
+        })
+      } else if (name === 'list_files') {
+        pushRow({
+          filePath: input.path || '/',
+          fileName: input.path || '/',
+          fileType: 'folder',
+          operation: name,
+          sourceKind: 'tool_call',
+          content: output,
+        })
+      } else if (name === 'copy_files' && Array.isArray(input.files)) {
+        input.files.forEach((copy: any) => {
+          pushRow({
+            filePath: copy.dest ?? copy.src,
+            operation: name,
+            sourceKind: 'tool_call',
+            content: output,
+          })
+        })
+      } else if (output) {
+        pushRow({
+          filePath: name,
+          fileName: name,
+          fileType: 'tool',
+          operation: name,
+          sourceKind: 'tool_call',
+          content: output,
+        })
+      }
+    } else if (block.type === 'error' && typeof block.message === 'string') {
+      pushRow({
+        filePath: 'Claude Design error',
+        fileName: 'Claude Design error',
+        fileType: 'error',
+        operation: 'error',
+        sourceKind: 'system',
+        content: block.message,
+      })
+    }
+  })
+
+  return rows
+}
+
+function normalizeFilePath(value: string): string {
+  const trimmed = String(value || '').trim()
+  return trimmed || 'untitled'
+}
+
+function fileNameFromPath(filePath: string): string {
+  const normalized = normalizeFilePath(filePath)
+  const parts = normalized.split(/[\\/]/).filter(Boolean)
+  return parts[parts.length - 1] || normalized
+}
+
+function inferFileType(filePath: string): string | null {
+  const name = fileNameFromPath(filePath)
+  const dot = name.lastIndexOf('.')
+  if (dot === -1 || dot === name.length - 1) return null
+  return name.slice(dot + 1).toLowerCase()
 }
 
 function extractMessageText(msg: any): string {
@@ -224,21 +467,32 @@ function extractMessageText(msg: any): string {
   const content = msg.content
   if (!content) return ''
 
-  if (typeof content.content === 'string') return content.content
+  const parts: string[] = []
+  if (typeof content.content === 'string') parts.push(content.content)
 
   if (Array.isArray(content.content)) {
-    return content.content
+    parts.push(content.content
       .map((block: any) => {
         if (typeof block === 'string') return block
         if (block?.type === 'text' && typeof block.text === 'string') return block.text
         return ''
       })
       .filter(Boolean)
-      .join('\n')
-      .trim()
+      .join('\n'))
   }
 
-  return ''
+  if (Array.isArray(content.contentBlocks)) {
+    parts.push(content.contentBlocks
+      .map((block: any) => {
+        if (block?.type === 'text' && typeof block.text === 'string') return block.text
+        if (block?.type === 'thinking' && typeof block.text === 'string') return block.text
+        return ''
+      })
+      .filter(Boolean)
+      .join('\n'))
+  }
+
+  return parts.filter(Boolean).join('\n').trim()
 }
 
 function normalizeRole(msg: any): string {

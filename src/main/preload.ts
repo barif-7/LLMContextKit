@@ -26,6 +26,9 @@ contextBridge.exposeInMainWorld('api', {
   listAttachments: (type: string) => ipcRenderer.invoke('attachments:list', type),
   listLinks: () => ipcRenderer.invoke('links:list'),
   listMemories: () => ipcRenderer.invoke('memories:list'),
+  claudeDesignProjects: () => ipcRenderer.invoke('claude:designProjects'),
+  claudeDesignFiles: (params: any) => ipcRenderer.invoke('claude:designFiles', params),
+  claudeFileTree: (params: any) => ipcRenderer.invoke('claude:fileTree', params),
   clearDB: () => ipcRenderer.invoke('db:clear'),
 
   // Shell
@@ -40,6 +43,8 @@ contextBridge.exposeInMainWorld('api', {
   syncFlags: () => ipcRenderer.invoke('sync:flags:get'),
   setSyncFlags: (patch: any) => ipcRenderer.invoke('sync:flags:set', patch),
   syncStatus: () => ipcRenderer.invoke('sync:status'),
+  startChatGPTAuth: () => ipcRenderer.invoke('sync:chatgptAuthStart'),
+  chatGPTAuthStatus: () => ipcRenderer.invoke('sync:chatgptAuthStatus'),
   runSync: (mode: string) => ipcRenderer.invoke('sync:run', mode),
 
   // MCP
