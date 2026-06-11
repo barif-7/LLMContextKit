@@ -466,6 +466,15 @@ ipcMain.handle('import:merge', async (_event, filePaths: string[]) => {
 
 // ── IPC: Search ───────────────────────────────────────────────────────────────
 
+// FTS5 syntax safety — strip operators and quote tokens so queries like
+// `"don't` or `foo(bar)` can't raise an fts5 syntax error.
+function ftsMatchQuery(q: string): string {
+  const cleaned = q.trim().replace(/["'()*]/g, ' ').replace(/\s+/g, ' ').trim()
+  if (!cleaned) return ''
+  const tokens = cleaned.split(' ')
+  return tokens.map((t, i) => (i === tokens.length - 1 ? `"${t}"*` : `"${t}"`)).join(' ')
+}
+
 ipcMain.handle('search:query', async (_event, params: SearchParams) => {
   const db = getDB()
 
@@ -482,7 +491,8 @@ ipcMain.handle('search:query', async (_event, params: SearchParams) => {
   `
   const args: any[] = []
 
-  if (params.query) {
+  const matchQuery = params.query ? ftsMatchQuery(params.query) : ''
+  if (matchQuery) {
     sql += ` AND (
       m.rowid IN (
         SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?
@@ -494,8 +504,8 @@ ipcMain.handle('search:query', async (_event, params: SearchParams) => {
         )
       )
     )`
-    args.push(params.query + '*')
-    args.push(params.query + '*')
+    args.push(matchQuery)
+    args.push(matchQuery)
   }
 
   if (params.convId) {

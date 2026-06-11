@@ -14,6 +14,22 @@ export function initDB() {
   db.pragma('mmap_size = 268435456') // 256MB mmap
   db.pragma('cache_size = -64000')   // 64MB cache
 
+  // Recreate the FTS index only when its schema differs from what we want.
+  // Dropping unconditionally on every launch left a crash window with no
+  // messages_fts at all (db.exec autocommits per statement) and cost a full
+  // O(corpus) rebuild at startup.
+  const ftsSql = (db.prepare(`SELECT sql FROM sqlite_master WHERE name = 'messages_fts'`)
+    .get() as { sql?: string } | undefined)?.sql ?? ''
+  const ftsUpToDate = ftsSql.includes(`tokenize='porter unicode61'`) && ftsSql.includes('content=messages')
+  if (ftsSql && !ftsUpToDate) {
+    db.exec(`
+      DROP TRIGGER IF EXISTS messages_ai;
+      DROP TRIGGER IF EXISTS messages_ad;
+      DROP TRIGGER IF EXISTS messages_au;
+      DROP TABLE IF EXISTS messages_fts;
+    `)
+  }
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS conversations (
       id          TEXT PRIMARY KEY,
@@ -125,11 +141,6 @@ export function initDB() {
     CREATE INDEX IF NOT EXISTS idx_claude_design_path ON claude_design_files(file_path);
     CREATE INDEX IF NOT EXISTS idx_claude_design_conv ON claude_design_files(conv_id);
 
-    DROP TRIGGER IF EXISTS messages_ai;
-    DROP TRIGGER IF EXISTS messages_ad;
-    DROP TRIGGER IF EXISTS messages_au;
-    DROP TABLE IF EXISTS messages_fts;
-
     -- FTS5 for full-text search with BM25 ranking. This is an external-content
     -- table backed by messages, so every indexed column must exist on messages.
     CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
@@ -180,7 +191,11 @@ export function initDB() {
   migrateColumn('messages', 'source', `ALTER TABLE messages ADD COLUMN source TEXT NOT NULL DEFAULT 'chatgpt'`)
   db.exec(`CREATE INDEX IF NOT EXISTS idx_messages_source ON messages(source)`)
 
-  db.exec(`INSERT INTO messages_fts(messages_fts) VALUES('rebuild')`)
+  // Triggers keep the index in sync; a full rebuild is only needed when the
+  // FTS table was just (re)created.
+  if (!ftsUpToDate) {
+    db.exec(`INSERT INTO messages_fts(messages_fts) VALUES('rebuild')`)
+  }
 
   return db
 }

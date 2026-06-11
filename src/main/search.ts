@@ -59,9 +59,11 @@ function normalizeQuery(query: string): string {
 }
 
 function toMatchQuery(query: string): string {
-  const normalized = normalizeQuery(query)
+  // Strip FTS5 operators and quote tokens so user input can't raise an
+  // fts5 syntax error.
+  const normalized = normalizeQuery(query).replace(/["'()*]/g, ' ').replace(/\s+/g, ' ').trim()
   if (!normalized) return ''
-  return normalized.split(' ').filter(Boolean).map((token) => `${token}*`).join(' ')
+  return normalized.split(' ').filter(Boolean).map((token) => `"${token}"*`).join(' ')
 }
 
 function escapeLike(input: string): string {
@@ -82,6 +84,9 @@ export function registerSearchIpc() {
     }
 
     const matchQuery = toMatchQuery(query)
+    if (!matchQuery) {
+      return []
+    }
     const likeQuery = `%${escapeLike(query)}%`
 
     return db.prepare([
