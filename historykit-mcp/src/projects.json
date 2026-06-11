@@ -2,9 +2,19 @@
   "_comment": "Hand-editable project registry. Add projects as top-level keys; each project value is { \"aliases\": [distinctive terms from conversations], \"repo\": \"optional owner/repo or path\" }. Keys starting with _ are ignored.",
   "dev-music-service": {
     "aliases": [
+      "dev-music-service",
+      "Dev Music Service",
       "dev music",
       "music service",
       "music bench",
+      "Musition",
+      "Phase",
+      "Phase Mobile",
+      "ReccoBeats",
+      "LRCLIB",
+      "Essentia",
+      "yt-dlp",
+      "ffmpeg",
       "cosyvoice",
       "ollama",
       "qwen"

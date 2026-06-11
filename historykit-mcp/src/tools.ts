@@ -11,6 +11,12 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { getEmbeddingConfig, ollamaEmbed, quoteIdentifier } from './vec.js'
+import {
+  buildPromptTimeline,
+  getPromptArtifact,
+  listPromptArtifacts,
+  writePromptTimelineReport,
+} from './promptArtifacts.js'
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -338,6 +344,72 @@ export const toolDefinitions = [
     },
   },
   {
+    name: 'list_prompt_artifacts',
+    description:
+      'List prompt, handoff, task, build, and context-pack artifacts found in HistoryKit. Use this when a coding agent needs reusable prompts or prior project instructions without scanning raw chat history. Supports project filters like dev-music-service and historykit.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project: { type: 'string', description: 'Optional project key or alias scope. Examples: dev-music-service, historykit, any. Default: any' },
+        query: { type: 'string', description: 'Optional substring filter inside artifact title/content' },
+        source: { type: 'string', enum: ['chatgpt', 'claude', 'any'], description: 'Filter by source export (default: any)' },
+        strict: { type: 'boolean', description: 'Only prompt/handoff/task-shaped artifacts when true; include broader architecture/context material when false. Default true.' },
+        limit: { type: 'number', description: 'Max artifacts to return (default 100, max 1000)' },
+        include_content: { type: 'boolean', description: 'Include artifact content in results (default false)' },
+        max_content_chars: { type: 'number', description: 'Max content chars per artifact when include_content=true (default 4000, max 50000)' },
+      },
+    },
+  },
+  {
+    name: 'get_prompt_artifact',
+    description:
+      'Fetch one full prompt artifact by artifact_id returned from list_prompt_artifacts or build_prompt_timeline. Use after listing to pass a precise prompt/handoff into another coding agent.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        artifact_id: { type: 'string', description: 'Artifact ID such as messages:<message_id>, code_blocks:<id>, attachment_contents:<id>, or claude_design_files:<id>' },
+        project: { type: 'string', description: 'Optional project filter. Default: any' },
+        source: { type: 'string', enum: ['chatgpt', 'claude', 'any'], description: 'Optional source filter. Default: any' },
+        strict: { type: 'boolean', description: 'Use strict prompt filtering. Default false for direct lookup.' },
+        max_chars: { type: 'number', description: 'Max content chars returned (default 100000, max 500000)' },
+      },
+      required: ['artifact_id'],
+    },
+  },
+  {
+    name: 'build_prompt_timeline',
+    description:
+      'Build a chronological markdown prompt timeline directly from HistoryKit. Returns markdown to the agent; use write_prompt_timeline_report when a local file is needed.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project: { type: 'string', description: 'Optional project scope. Examples: dev-music-service, historykit, any. Default: any' },
+        query: { type: 'string', description: 'Optional substring filter inside artifact title/content' },
+        source: { type: 'string', enum: ['chatgpt', 'claude', 'any'], description: 'Filter by source export (default: any)' },
+        strict: { type: 'boolean', description: 'Only prompt/handoff/task-shaped artifacts when true. Default true.' },
+        limit: { type: 'number', description: 'Max artifacts (default 100, max 1000)' },
+        include_content: { type: 'boolean', description: 'Include full artifact markdown bodies (default true)' },
+      },
+    },
+  },
+  {
+    name: 'write_prompt_timeline_report',
+    description:
+      'Write a chronological markdown prompt timeline report to disk. Defaults to /Users/basilarif/Downloads/<project>-prompt-timeline.md.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project: { type: 'string', description: 'Optional project scope. Examples: dev-music-service, historykit, any. Default: any' },
+        query: { type: 'string', description: 'Optional substring filter inside artifact title/content' },
+        source: { type: 'string', enum: ['chatgpt', 'claude', 'any'], description: 'Filter by source export (default: any)' },
+        strict: { type: 'boolean', description: 'Only prompt/handoff/task-shaped artifacts when true. Default true.' },
+        limit: { type: 'number', description: 'Max artifacts (default 100, max 1000)' },
+        include_content: { type: 'boolean', description: 'Include full artifact markdown bodies (default true)' },
+        output_path: { type: 'string', description: 'Optional absolute output path for the markdown report' },
+      },
+    },
+  },
+  {
     name: 'memory_timeline',
     description:
       'Chronological timeline of ChatGPT memories showing when each was created and which conversation it came from. Use this to understand how ChatGPT\'s knowledge about the user evolved over time.',
@@ -393,6 +465,10 @@ export async function executeTool(
     case 'search_attachments':   return searchAttachments(args, db)
     case 'get_stats':            return getStats(db)
     case 'get_context_pack':      return getContextPack(args, db)
+    case 'list_prompt_artifacts': return listPromptArtifacts(args, db)
+    case 'get_prompt_artifact':   return getPromptArtifact(args, db)
+    case 'build_prompt_timeline': return buildPromptTimeline(args, db)
+    case 'write_prompt_timeline_report': return writePromptTimelineReport(args, db)
     case 'memory_timeline':      return memoryTimeline(args, db)
     case 'memory_conflicts':     return memoryConflicts(args, db)
     case 'export_memories':      return exportMemories(args, db)
