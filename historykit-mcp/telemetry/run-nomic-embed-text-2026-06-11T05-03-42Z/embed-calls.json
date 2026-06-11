@@ -1,0 +1,119 @@
+{
+  "started_at": "2026-06-11T05:16:42.629Z",
+  "ended_at": "2026-06-11T05:25:41.020Z",
+  "wall_clock_seconds": 538.4,
+  "embed_calls_ok": 11200,
+  "embed_chars_ok": 15376207,
+  "calls_per_sec": 20.8,
+  "chars_per_sec": 28560,
+  "latency_ms": {
+    "min": 10,
+    "median": 17,
+    "p95": 191.3,
+    "max": 299.9
+  },
+  "failures_count": 188,
+  "failures_sample": [
+    {
+      "kind": "http_500",
+      "promptChars": 8000,
+      "ms": 8
+    },
+    {
+      "kind": "http_500",
+      "promptChars": 6916,
+      "ms": 8
+    },
+    {
+      "kind": "http_500",
+      "promptChars": 8000,
+      "ms": 8
+    },
+    {
+      "kind": "http_500",
+      "promptChars": 6553,
+      "ms": 8
+    },
+    {
+      "kind": "http_500",
+      "promptChars": 7957,
+      "ms": 8
+    },
+    {
+      "kind": "http_500",
+      "promptChars": 7334,
+      "ms": 9
+    },
+    {
+      "kind": "http_500",
+      "promptChars": 5914,
+      "ms": 7
+    },
+    {
+      "kind": "http_500",
+      "promptChars": 5914,
+      "ms": 16
+    },
+    {
+      "kind": "http_500",
+      "promptChars": 8000,
+      "ms": 9
+    },
+    {
+      "kind": "http_500",
+      "promptChars": 8000,
+      "ms": 8
+    },
+    {
+      "kind": "http_500",
+      "promptChars": 6970,
+      "ms": 9
+    },
+    {
+      "kind": "http_500",
+      "promptChars": 7713,
+      "ms": 8
+    },
+    {
+      "kind": "http_500",
+      "promptChars": 8000,
+      "ms": 8
+    },
+    {
+      "kind": "http_500",
+      "promptChars": 7341,
+      "ms": 7
+    },
+    {
+      "kind": "http_500",
+      "promptChars": 8000,
+      "ms": 9
+    },
+    {
+      "kind": "http_500",
+      "promptChars": 8000,
+      "ms": 7
+    },
+    {
+      "kind": "http_500",
+      "promptChars": 6000,
+      "ms": 8
+    },
+    {
+      "kind": "http_500",
+      "promptChars": 8000,
+      "ms": 7
+    },
+    {
+      "kind": "http_500",
+      "promptChars": 6000,
+      "ms": 8
+    },
+    {
+      "kind": "http_500",
+      "promptChars": 8000,
+      "ms": 9
+    }
+  ],
+  "peak_rss_bytes": 188153856
+}

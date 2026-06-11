@@ -1,0 +1,1200 @@
+{
+  "generated_at": "2026-06-11T05:27:51.086Z",
+  "model": "nomic-embed-text",
+  "dims": 768,
+  "vector_table": "message_vectors",
+  "indexed_messages": 11200,
+  "k": 5,
+  "candidate_limit_per_leg": 15,
+  "probes": [
+    {
+      "group": "prose",
+      "query": "career transition from iOS to applied AI",
+      "fts": [
+        {
+          "conv_title": "Career Transition Summary",
+          "msg_id": "322d3b14-6cb9-4518-8fb9-340b4f6266ca",
+          "role": "assistant",
+          "has_code": false,
+          "score": "fts_rank_1",
+          "snippet": "…ce **January 2025**, your life has been defined by four overlapping arcs:\n\n1. **Career recovery after Slack**  \n   You were trying to re-enter the market as a strong iOS engineer, while also reframing your Slack experience as deeper, more s…"
+        },
+        {
+          "conv_title": "Career Transition Summary",
+          "msg_id": "f921d99d-7116-4e77-9c92-8207ed34ff68",
+          "role": "assistant",
+          "has_code": false,
+          "score": "fts_rank_2",
+          "snippet": "…ty, and whether pairing your iOS background with AI tooling could create better career opportunities.\n\nYou started framing your edge as:\n\n> “I can build polished product experiences, but now I want to add AI systems, agents, local models, a…"
+        },
+        {
+          "conv_title": "Evaluating credible ML programs",
+          "msg_id": "019eaad3-384e-7f7f-bff1-822aa1b00189",
+          "role": "assistant",
+          "has_code": true,
+          "score": "fts_rank_3",
+          "snippet": "…et.\n```\n\n I'm mapping out the main threads of this conversation—credentials and career agency, ML versus iOS as paths forward, resume positioning, compensation differences, and long-term growth at companies like Apple. The user wants my hon…"
+        },
+        {
+          "conv_title": "UI Redesign Request",
+          "msg_id": "b9e25d31-6356-42e6-ac61-41d94daa2eff",
+          "role": "assistant",
+          "has_code": true,
+          "score": "fts_rank_4",
+          "snippet": "…ch jobs mention iOS + AI + media?”\n```\n\nThis is where LLMContextKit becomes a **career intelligence system**, not just a search app.\n\nUseful object:\n\n```json\n{\n  \"type\": \"job_application\",\n  \"company\": \"FreshBooks\",\n  \"role\": \"Machine Learn…"
+        },
+        {
+          "conv_title": "Credible ML Programs",
+          "msg_id": "e6f48207-505e-4755-9d72-c42b1e35438e",
+          "role": "assistant",
+          "has_code": false,
+          "score": "fts_rank_5",
+          "snippet": "…reate a personal music intelligence layer?**\n\nThat connects much better to your career transition because it touches:\n\n> audio systems, backend APIs, iOS, ML, MLOps, recommendation systems, signal processing, product engineering.\n\nSo the pr…"
+        }
+      ],
+      "vector": [
+        {
+          "conv_title": "Simple Instagram Store Concept",
+          "msg_id": "295013cf-7471-4c0e-b9f7-f4f4fe005bcf",
+          "role": "user",
+          "has_code": false,
+          "score": 16.9778,
+          "snippet": "Help me answer this question on a job application for Opal"
+        },
+        {
+          "conv_title": "Local-first Business System",
+          "msg_id": "ab1c9e74-31fb-44db-99cb-6571d05ea7ae",
+          "role": "assistant",
+          "has_code": true,
+          "score": 17.3591,
+          "snippet": "…tion\n- Apply button\n- application flow\n- no “job closed” or redirect to generic careers page\n\nIf invalid:\n- mark `SKIPPED`\n\n## Step 5: Check role relevance\nOnly continue if it is:\n- iOS\n- mobile\n- Swift / SwiftUI / UIKit\n- maybe SDK/mobile …"
+        },
+        {
+          "conv_title": "Local-first Business System",
+          "msg_id": "4117e2f9-18f1-4678-bdf3-8135a0980668",
+          "role": "assistant",
+          "has_code": true,
+          "score": 17.451,
+          "snippet": "…ble\n- it has an apply flow or application button\n- it is on an official company careers page or official ATS page\n\nA role should be SKIPPED if:\n- closed\n- redirected to a generic search page with no active listing\n- clearly unrelated to iOS…"
+        },
+        {
+          "conv_title": "Local-first Business System",
+          "msg_id": "4e4215f2-245a-4c96-ae73-db18d65aaf4e",
+          "role": "assistant",
+          "has_code": true,
+          "score": 17.5527,
+          "snippet": "…ble\n- it has an apply flow or application button\n- it is on an official company careers page or official ATS page\n\nA role should be SKIPPED if:\n- closed\n- redirected to a generic search page with no active listing\n- clearly unrelated to iOS…"
+        },
+        {
+          "conv_title": "Local-first Business System",
+          "msg_id": "4d4db108-b993-4449-8019-8ac42ebfc07c",
+          "role": "assistant",
+          "has_code": true,
+          "score": 17.5615,
+          "snippet": "…button?\n- is it closed / archived / redirected?\n- is it on the official company careers page or official ATS page?\n\nIf invalid:\n- mark `SKIPPED`\n- log reason\n\n## Step 4: Relevance filter\nCheck if role is actually relevant:\n- iOS\n- Mobile\n- …"
+        }
+      ],
+      "fused": [
+        {
+          "conv_title": "Local-first Business System",
+          "msg_id": "4117e2f9-18f1-4678-bdf3-8135a0980668",
+          "role": "assistant",
+          "has_code": true,
+          "score": 0.029572,
+          "snippet": "…ble\n- it has an apply flow or application button\n- it is on an official company careers page or official ATS page\n\nA role should be SKIPPED if:\n- closed\n- redirected to a generic search page with no active listing\n- clearly unrelated to iOS…",
+          "fts_rank": 13,
+          "vector_rank": 3
+        },
+        {
+          "conv_title": "Career Transition Summary",
+          "msg_id": "322d3b14-6cb9-4518-8fb9-340b4f6266ca",
+          "role": "assistant",
+          "has_code": false,
+          "score": 0.016393,
+          "snippet": "…ce **January 2025**, your life has been defined by four overlapping arcs:\n\n1. **Career recovery after Slack**  \n   You were trying to re-enter the market as a strong iOS engineer, while also reframing your Slack experience as deeper, more s…",
+          "fts_rank": 1,
+          "vector_rank": null
+        },
+        {
+          "conv_title": "Simple Instagram Store Concept",
+          "msg_id": "295013cf-7471-4c0e-b9f7-f4f4fe005bcf",
+          "role": "user",
+          "has_code": false,
+          "score": 0.016393,
+          "snippet": "Help me answer this question on a job application for Opal",
+          "fts_rank": null,
+          "vector_rank": 1
+        },
+        {
+          "conv_title": "Career Transition Summary",
+          "msg_id": "f921d99d-7116-4e77-9c92-8207ed34ff68",
+          "role": "assistant",
+          "has_code": false,
+          "score": 0.016129,
+          "snippet": "…ty, and whether pairing your iOS background with AI tooling could create better career opportunities.\n\nYou started framing your edge as:\n\n> “I can build polished product experiences, but now I want to add AI systems, agents, local models, a…",
+          "fts_rank": 2,
+          "vector_rank": null
+        },
+        {
+          "conv_title": "Local-first Business System",
+          "msg_id": "ab1c9e74-31fb-44db-99cb-6571d05ea7ae",
+          "role": "assistant",
+          "has_code": true,
+          "score": 0.016129,
+          "snippet": "…tion\n- Apply button\n- application flow\n- no “job closed” or redirect to generic careers page\n\nIf invalid:\n- mark `SKIPPED`\n\n## Step 5: Check role relevance\nOnly continue if it is:\n- iOS\n- mobile\n- Swift / SwiftUI / UIKit\n- maybe SDK/mobile …",
+          "fts_rank": null,
+          "vector_rank": 2
+        }
+      ]
+    },
+    {
+      "group": "prose",
+      "query": "why Tailscale single hub instead of multi-device sync",
+      "fts": [],
+      "vector": [
+        {
+          "conv_title": "Pinterest Interview Prep",
+          "msg_id": "fae259b9-e282-4250-9e47-1983180f028e",
+          "role": "assistant",
+          "has_code": true,
+          "score": 15.9444,
+          "snippet": "…full reload\n\nSay:\n\n> “For correctness, I’d want a sync token or server version. Instead of re-fetching all notifications, the client asks: ‘What changed since token X?’”\n\n```swift\nstruct NotificationSyncResult {\n    let upserts: [Notificati…"
+        },
+        {
+          "conv_title": "Optimized interview solutions",
+          "msg_id": "749a9c95-3c53-40b7-9f59-eb75b90f9600",
+          "role": "assistant",
+          "has_code": true,
+          "score": 16.9686,
+          "snippet": "Got it — now we’re talking about **multi-device login for a real-time chat app** (like WhatsApp Web or iMessage on iPad/iPhone). Here’s a **Swift/iOS interview-ready approach**:  \n\n---\n\n### **1. Key Challenges**\n1. **Message Sync Across Dev…"
+        },
+        {
+          "conv_title": "Swift vs Python Comparison",
+          "msg_id": "afdb36e7-ab2c-466f-9b48-5bbaacebd25f",
+          "role": "assistant",
+          "has_code": true,
+          "score": 17.0289,
+          "snippet": "…un **multiple tasks at the same time** — like loading images while scrolling or syncing data in the background without freezing the UI.\n\n---\n\n### ⚙️ Key Concepts\n\n| Concept              | Explanation |\n|----------------------|-------------|…"
+        },
+        {
+          "conv_title": "CRUD Methods Implementation",
+          "msg_id": "37f476d5-415d-4db8-b49e-fb3f506db827",
+          "role": "assistant",
+          "has_code": true,
+          "score": 17.0659,
+          "snippet": "…w you can ensure that:\n\n---\n\n## 1. **Centralized Storage**\n\nKeep your data in a single place:\n\n- **Database** (SQL, NoSQL, cloud DB)\n- **Shared file storage** (e.g. S3, GCS)\n- **APIs** that always pull live data\n\nAll teams read/write throug…"
+        },
+        {
+          "conv_title": "Proofreading dev music service documentation",
+          "msg_id": "019e4c4a-f24c-7c20-873f-ae2d537508e6",
+          "role": "assistant",
+          "has_code": true,
+          "score": 17.163,
+          "snippet": "…s on each Mac to capture Claude Code events and send them to a central hub over Tailscale, along with configuration files to wire everything together.\n\nFor the tech stack, I'm leaning toward Python for the collector service since it's alrea…"
+        }
+      ],
+      "fused": [
+        {
+          "conv_title": "Pinterest Interview Prep",
+          "msg_id": "fae259b9-e282-4250-9e47-1983180f028e",
+          "role": "assistant",
+          "has_code": true,
+          "score": 0.016393,
+          "snippet": "…full reload\n\nSay:\n\n> “For correctness, I’d want a sync token or server version. Instead of re-fetching all notifications, the client asks: ‘What changed since token X?’”\n\n```swift\nstruct NotificationSyncResult {\n    let upserts: [Notificati…",
+          "fts_rank": null,
+          "vector_rank": 1
+        },
+        {
+          "conv_title": "Optimized interview solutions",
+          "msg_id": "749a9c95-3c53-40b7-9f59-eb75b90f9600",
+          "role": "assistant",
+          "has_code": true,
+          "score": 0.016129,
+          "snippet": "Got it — now we’re talking about **multi-device login for a real-time chat app** (like WhatsApp Web or iMessage on iPad/iPhone). Here’s a **Swift/iOS interview-ready approach**:  \n\n---\n\n### **1. Key Challenges**\n1. **Message Sync Across Dev…",
+          "fts_rank": null,
+          "vector_rank": 2
+        },
+        {
+          "conv_title": "Swift vs Python Comparison",
+          "msg_id": "afdb36e7-ab2c-466f-9b48-5bbaacebd25f",
+          "role": "assistant",
+          "has_code": true,
+          "score": 0.015873,
+          "snippet": "…un **multiple tasks at the same time** — like loading images while scrolling or syncing data in the background without freezing the UI.\n\n---\n\n### ⚙️ Key Concepts\n\n| Concept              | Explanation |\n|----------------------|-------------|…",
+          "fts_rank": null,
+          "vector_rank": 3
+        },
+        {
+          "conv_title": "CRUD Methods Implementation",
+          "msg_id": "37f476d5-415d-4db8-b49e-fb3f506db827",
+          "role": "assistant",
+          "has_code": true,
+          "score": 0.015625,
+          "snippet": "…w you can ensure that:\n\n---\n\n## 1. **Centralized Storage**\n\nKeep your data in a single place:\n\n- **Database** (SQL, NoSQL, cloud DB)\n- **Shared file storage** (e.g. S3, GCS)\n- **APIs** that always pull live data\n\nAll teams read/write throug…",
+          "fts_rank": null,
+          "vector_rank": 4
+        },
+        {
+          "conv_title": "Proofreading dev music service documentation",
+          "msg_id": "019e4c4a-f24c-7c20-873f-ae2d537508e6",
+          "role": "assistant",
+          "has_code": true,
+          "score": 0.015385,
+          "snippet": "…s on each Mac to capture Claude Code events and send them to a central hub over Tailscale, along with configuration files to wire everything together.\n\nFor the tech stack, I'm leaning toward Python for the collector service since it's alrea…",
+          "fts_rank": null,
+          "vector_rank": 5
+        }
+      ]
+    },
+    {
+      "group": "prose",
+      "query": "scope creep, build the smallest version first",
+      "fts": [
+        {
+          "conv_title": "Project Organization Strategy",
+          "msg_id": "810564b0-2217-40bc-b3c9-4dbdc7ab1187",
+          "role": "assistant",
+          "has_code": true,
+          "score": "fts_rank_1",
+          "snippet": "…ered, what needs revisiting?\n\n6. **Postmortem**  \n   Why did the project stall? Scope creep? Missing product definition? Broken infra? Too many features? No MVP?\n\n7. **Resume / portfolio value**  \n   What parts are worth saving as proof-of-…"
+        }
+      ],
+      "vector": [
+        {
+          "conv_title": "App Ideas for Quick Profit",
+          "msg_id": "c161d728-f5a2-492a-878b-e6a1acd886ae",
+          "role": "assistant",
+          "has_code": false,
+          "score": 16.6747,
+          "snippet": "{\"query\": \"freelance scope creep problem 2025 2026 app to detect scope creep for freelancers\", \"source\": \"computer\"}"
+        },
+        {
+          "conv_title": "Qwen-Embeddings-8B Mac mini",
+          "msg_id": "fa60d90c-c5f3-4ea6-8cd4-99725dbf7a00",
+          "role": "assistant",
+          "has_code": false,
+          "score": 16.9401,
+          "snippet": "I’ll sanity-check the actual Qwen embedding model size/requirements and then translate that into what it means for a 16GB Mac mini, including practical ways to run it locally."
+        },
+        {
+          "conv_title": "AI Engineer Startup Showcase",
+          "msg_id": "9abf812f-4cc2-4185-a597-1c2020613382",
+          "role": "assistant",
+          "has_code": false,
+          "score": 17.1108,
+          "snippet": "… available under your tier/provider wiring,\n- or you are doing simpler, tightly scoped tasks. citeturn430241search0\n\n## My recommendation\n\nFor OpenClaw, pick:\n\n**`openai/gpt-5.4-mini`**\n\nThat is the most sensible default mini model right…"
+        },
+        {
+          "conv_title": "Qwen-Embeddings-8B Mac mini",
+          "msg_id": "5806be11-8a1c-4652-a354-5f86a44a5f1f",
+          "role": "assistant",
+          "has_code": true,
+          "score": 17.1882,
+          "snippet": "… fast local personal search, less powerful. |\n\nThere are already GGUF quantized builds for **Qwen3-Embedding-8B**, and those are explicitly meant for CPU / low-VRAM inference. Lower-bit quantization such as Q4 reduces memory use, while Q6/Q…"
+        },
+        {
+          "conv_title": "Number of Islands problem",
+          "msg_id": "bab36e8f-fcea-42c8-93f3-c5feaf36a2eb",
+          "role": "assistant",
+          "has_code": true,
+          "score": 17.1984,
+          "snippet": "…ow this step‑by‑step plan today; when you’re done, say **“next”** and I’ll load the next topic.\n\n---\n\n# 🧠 Memory Management Crash Study (2–3 hrs)\n\n## 0) Goals (2 min)\nBy the end, you can:\n- Explain **ARC**, **strong/weak/unowned**.\n- Spot …"
+        }
+      ],
+      "fused": [
+        {
+          "conv_title": "Project Organization Strategy",
+          "msg_id": "810564b0-2217-40bc-b3c9-4dbdc7ab1187",
+          "role": "assistant",
+          "has_code": true,
+          "score": 0.016393,
+          "snippet": "…ered, what needs revisiting?\n\n6. **Postmortem**  \n   Why did the project stall? Scope creep? Missing product definition? Broken infra? Too many features? No MVP?\n\n7. **Resume / portfolio value**  \n   What parts are worth saving as proof-of-…",
+          "fts_rank": 1,
+          "vector_rank": null
+        },
+        {
+          "conv_title": "App Ideas for Quick Profit",
+          "msg_id": "c161d728-f5a2-492a-878b-e6a1acd886ae",
+          "role": "assistant",
+          "has_code": false,
+          "score": 0.016393,
+          "snippet": "{\"query\": \"freelance scope creep problem 2025 2026 app to detect scope creep for freelancers\", \"source\": \"computer\"}",
+          "fts_rank": null,
+          "vector_rank": 1
+        },
+        {
+          "conv_title": "Qwen-Embeddings-8B Mac mini",
+          "msg_id": "fa60d90c-c5f3-4ea6-8cd4-99725dbf7a00",
+          "role": "assistant",
+          "has_code": false,
+          "score": 0.016129,
+          "snippet": "I’ll sanity-check the actual Qwen embedding model size/requirements and then translate that into what it means for a 16GB Mac mini, including practical ways to run it locally.",
+          "fts_rank": null,
+          "vector_rank": 2
+        },
+        {
+          "conv_title": "AI Engineer Startup Showcase",
+          "msg_id": "9abf812f-4cc2-4185-a597-1c2020613382",
+          "role": "assistant",
+          "has_code": false,
+          "score": 0.015873,
+          "snippet": "… available under your tier/provider wiring,\n- or you are doing simpler, tightly scoped tasks. citeturn430241search0\n\n## My recommendation\n\nFor OpenClaw, pick:\n\n**`openai/gpt-5.4-mini`**\n\nThat is the most sensible default mini model right…",
+          "fts_rank": null,
+          "vector_rank": 3
+        },
+        {
+          "conv_title": "Qwen-Embeddings-8B Mac mini",
+          "msg_id": "5806be11-8a1c-4652-a354-5f86a44a5f1f",
+          "role": "assistant",
+          "has_code": true,
+          "score": 0.015625,
+          "snippet": "… fast local personal search, less powerful. |\n\nThere are already GGUF quantized builds for **Qwen3-Embedding-8B**, and those are explicitly meant for CPU / low-VRAM inference. Lower-bit quantization such as Q4 reduces memory use, while Q6/Q…",
+          "fts_rank": null,
+          "vector_rank": 4
+        }
+      ]
+    },
+    {
+      "group": "paraphrase",
+      "query": "the database driver broke after a runtime upgrade",
+      "fts": [],
+      "vector": [
+        {
+          "conv_title": "Add loading indicator",
+          "msg_id": "bdac915d-b9cc-4625-8538-b6a2b5723edc",
+          "role": "assistant",
+          "has_code": true,
+          "score": 17.6892,
+          "snippet": "…*, but most boil down to a handful of reasons.  \nHere’s a **table** summarizing the **most frequent crash causes**, why they happen, and how to fix them:\n\n---\n\n### **Common UITableView Crash Reasons**\n\n| **Crash Reason** | **Why It Happens*…"
+        },
+        {
+          "conv_title": "Electron SQLite Fix",
+          "msg_id": "8ef6af3c-a631-4c99-8153-193e2940cf91",
+          "role": "assistant",
+          "has_code": true,
+          "score": 17.7458,
+          "snippet": "…* happening at once.\n\n## 1. Main Electron crash: `better-sqlite3` was built for the wrong Node version\n\nThis is the important one:\n\n```txt\nbetter_sqlite3.node was compiled against a different Node.js version\nNODE_MODULE_VERSION 141\nThis ver…"
+        },
+        {
+          "conv_title": "OpenClaw Setup Mac Mini",
+          "msg_id": "f6dc9746-57cb-4de9-9133-c0e12755e11f",
+          "role": "assistant",
+          "has_code": false,
+          "score": 17.7977,
+          "snippet": "…4 | Repo Setup | Clone OpenClaw repo | `git clone ...` | Repo downloaded | Gets the actual agent framework code locally | ⬜ |\n| 5 | Repo Setup | Enter project folder | `cd openclaw` | Path updated | Required to run commands relative to proj…"
+        },
+        {
+          "conv_title": "Simple Instagram Store Concept",
+          "msg_id": "3a2f8728-5bea-480a-a233-99afc09fef74",
+          "role": "user",
+          "has_code": false,
+          "score": 17.8293,
+          "snippet": "…time. Please optimize your code. For more details on runtime environment, click the “Info” button"
+        },
+        {
+          "conv_title": "Terminal Debugging Guide",
+          "msg_id": "cf3ad72c-0451-4cdf-8980-d374bfbc2438",
+          "role": "assistant",
+          "has_code": true,
+          "score": 17.8472,
+          "snippet": "Here’s the current state after `openclaw doctor --fix`.\n\n## Good news\n\n`doctor --fix` **did not report any fatal errors**. Your OpenClaw install is still running, and these parts look healthy:\n\n- **WhatsApp is linked**\n- **main agent is act…"
+        }
+      ],
+      "fused": [
+        {
+          "conv_title": "Add loading indicator",
+          "msg_id": "bdac915d-b9cc-4625-8538-b6a2b5723edc",
+          "role": "assistant",
+          "has_code": true,
+          "score": 0.016393,
+          "snippet": "…*, but most boil down to a handful of reasons.  \nHere’s a **table** summarizing the **most frequent crash causes**, why they happen, and how to fix them:\n\n---\n\n### **Common UITableView Crash Reasons**\n\n| **Crash Reason** | **Why It Happens*…",
+          "fts_rank": null,
+          "vector_rank": 1
+        },
+        {
+          "conv_title": "Electron SQLite Fix",
+          "msg_id": "8ef6af3c-a631-4c99-8153-193e2940cf91",
+          "role": "assistant",
+          "has_code": true,
+          "score": 0.016129,
+          "snippet": "…* happening at once.\n\n## 1. Main Electron crash: `better-sqlite3` was built for the wrong Node version\n\nThis is the important one:\n\n```txt\nbetter_sqlite3.node was compiled against a different Node.js version\nNODE_MODULE_VERSION 141\nThis ver…",
+          "fts_rank": null,
+          "vector_rank": 2
+        },
+        {
+          "conv_title": "OpenClaw Setup Mac Mini",
+          "msg_id": "f6dc9746-57cb-4de9-9133-c0e12755e11f",
+          "role": "assistant",
+          "has_code": false,
+          "score": 0.015873,
+          "snippet": "…4 | Repo Setup | Clone OpenClaw repo | `git clone ...` | Repo downloaded | Gets the actual agent framework code locally | ⬜ |\n| 5 | Repo Setup | Enter project folder | `cd openclaw` | Path updated | Required to run commands relative to proj…",
+          "fts_rank": null,
+          "vector_rank": 3
+        },
+        {
+          "conv_title": "Simple Instagram Store Concept",
+          "msg_id": "3a2f8728-5bea-480a-a233-99afc09fef74",
+          "role": "user",
+          "has_code": false,
+          "score": 0.015625,
+          "snippet": "…time. Please optimize your code. For more details on runtime environment, click the “Info” button",
+          "fts_rank": null,
+          "vector_rank": 4
+        },
+        {
+          "conv_title": "Terminal Debugging Guide",
+          "msg_id": "cf3ad72c-0451-4cdf-8980-d374bfbc2438",
+          "role": "assistant",
+          "has_code": true,
+          "score": 0.015385,
+          "snippet": "Here’s the current state after `openclaw doctor --fix`.\n\n## Good news\n\n`doctor --fix` **did not report any fatal errors**. Your OpenClaw install is still running, and these parts look healthy:\n\n- **WhatsApp is linked**\n- **main agent is act…",
+          "fts_rank": null,
+          "vector_rank": 5
+        }
+      ]
+    },
+    {
+      "group": "paraphrase",
+      "query": "reward starting a task not finishing it",
+      "fts": [
+        {
+          "conv_title": "ADHD Task Initiation Tool",
+          "msg_id": "4699d50f-75dc-4679-a49a-bdb61929923b",
+          "role": "assistant",
+          "has_code": true,
+          "score": "fts_rank_1",
+          "snippet": "…uctions\",\n  \"estimated_effort\": \"30-60 min\",\n  \"motivation_style\": \"gentle\",\n  \"reward_points\": 40,\n  \"quest_type\": \"career_progress\"\n}\n```\n\n## What makes this different from a normal to-do app\n\nThe valuable part is not just “make a task.”\n…"
+        },
+        {
+          "conv_title": "Adderall Tolerance and Burnout",
+          "msg_id": "a906c5f2-6af0-4e76-b08b-29e2baccf563",
+          "role": "assistant",
+          "has_code": false,
+          "score": "fts_rank_2",
+          "snippet": "…s own focus pathways\n\n👉 That’s neuroplasticity working FOR you\n\n---\n\n### 🥉 3. Reward completion, not intensity\n\nInstead of:\n> “Did I feel productive?”\n\nTrack:\n> “Did I finish what I said I would?”\n\nThis builds:\n👉 intrinsic motivation cir…"
+        }
+      ],
+      "vector": [
+        {
+          "conv_title": "OpenClaw Automations List",
+          "msg_id": "741a32a9-c9c3-444d-8635-688bf2b9b8c8",
+          "role": "assistant",
+          "has_code": false,
+          "score": 17.2877,
+          "snippet": "The above image generation task was cancelled by the user and therefore the generated image is incomplete. The image will not finish generating and is not completed or successful. You need to re-generate the image for it to complete. Please…"
+        },
+        {
+          "conv_title": "Local-first Business System",
+          "msg_id": "8b7b1a5a-98ae-4aeb-a052-f74768b80817",
+          "role": "assistant",
+          "has_code": true,
+          "score": 17.9018,
+          "snippet": "…hboard` only **opens the control UI**. It does **not** by itself start a worker task, so seeing it idle right after that is normal.\n\n## What “idle” means here\nIt usually means:\n\n- the dashboard is running\n- OpenClaw is connected\n- no active…"
+        },
+        {
+          "conv_title": "To-Do List from Gmail",
+          "msg_id": "2ad8286b-c47b-420e-80f3-6f26e5b2a5a0",
+          "role": "assistant",
+          "has_code": false,
+          "score": 18.0767,
+          "snippet": "… for moderate tasks\n  - 25 min for focused work\n- send a start message like:\n  \"Starting a 15-minute sprint for: Email Wayfair recruiter.\"\n- when the timer ends, ask:\n  - Done\n  - Need 10 more minutes\n  - Blocked\n  - Snooze\n\nIf I say I feel…"
+        },
+        {
+          "conv_title": "Local-first Business System",
+          "msg_id": "19c8b5d0-b943-46ba-85c6-3b292ef5fe6c",
+          "role": "assistant",
+          "has_code": true,
+          "score": 18.1049,
+          "snippet": "This means **partial success**, not full completion.\n\n## What it actually accomplished\nIt did all of this:\n\n- opened **job 1**\n- scraped **some page content**\n- wrote a review artifact:\n  - `openclaw/workflows/job_apply_agent/output/extract…"
+        },
+        {
+          "conv_title": "Website QA Feedback",
+          "msg_id": "b85bc8fc-e4a7-4624-9488-a57bc91136cf",
+          "role": "assistant",
+          "has_code": false,
+          "score": 18.3918,
+          "snippet": "That means OpenClaw **accepted the task and spawned a subagent to execute it**.\n\n## What each field means\n\n- **`status: \"accepted\"`**  \n  The request was received successfully.\n\n- **`childSessionKey`**  \n  The work is being handled in this …"
+        }
+      ],
+      "fused": [
+        {
+          "conv_title": "ADHD Task Initiation Tool",
+          "msg_id": "4699d50f-75dc-4679-a49a-bdb61929923b",
+          "role": "assistant",
+          "has_code": true,
+          "score": 0.031319,
+          "snippet": "…uctions\",\n  \"estimated_effort\": \"30-60 min\",\n  \"motivation_style\": \"gentle\",\n  \"reward_points\": 40,\n  \"quest_type\": \"career_progress\"\n}\n```\n\n## What makes this different from a normal to-do app\n\nThe valuable part is not just “make a task.”\n…",
+          "fts_rank": 1,
+          "vector_rank": 7
+        },
+        {
+          "conv_title": "OpenClaw Automations List",
+          "msg_id": "741a32a9-c9c3-444d-8635-688bf2b9b8c8",
+          "role": "assistant",
+          "has_code": false,
+          "score": 0.016393,
+          "snippet": "The above image generation task was cancelled by the user and therefore the generated image is incomplete. The image will not finish generating and is not completed or successful. You need to re-generate the image for it to complete. Please…",
+          "fts_rank": null,
+          "vector_rank": 1
+        },
+        {
+          "conv_title": "Adderall Tolerance and Burnout",
+          "msg_id": "a906c5f2-6af0-4e76-b08b-29e2baccf563",
+          "role": "assistant",
+          "has_code": false,
+          "score": 0.016129,
+          "snippet": "…s own focus pathways\n\n👉 That’s neuroplasticity working FOR you\n\n---\n\n### 🥉 3. Reward completion, not intensity\n\nInstead of:\n> “Did I feel productive?”\n\nTrack:\n> “Did I finish what I said I would?”\n\nThis builds:\n👉 intrinsic motivation cir…",
+          "fts_rank": 2,
+          "vector_rank": null
+        },
+        {
+          "conv_title": "Local-first Business System",
+          "msg_id": "8b7b1a5a-98ae-4aeb-a052-f74768b80817",
+          "role": "assistant",
+          "has_code": true,
+          "score": 0.016129,
+          "snippet": "…hboard` only **opens the control UI**. It does **not** by itself start a worker task, so seeing it idle right after that is normal.\n\n## What “idle” means here\nIt usually means:\n\n- the dashboard is running\n- OpenClaw is connected\n- no active…",
+          "fts_rank": null,
+          "vector_rank": 2
+        },
+        {
+          "conv_title": "To-Do List from Gmail",
+          "msg_id": "2ad8286b-c47b-420e-80f3-6f26e5b2a5a0",
+          "role": "assistant",
+          "has_code": false,
+          "score": 0.015873,
+          "snippet": "… for moderate tasks\n  - 25 min for focused work\n- send a start message like:\n  \"Starting a 15-minute sprint for: Email Wayfair recruiter.\"\n- when the timer ends, ask:\n  - Done\n  - Need 10 more minutes\n  - Blocked\n  - Snooze\n\nIf I say I feel…",
+          "fts_rank": null,
+          "vector_rank": 3
+        }
+      ]
+    },
+    {
+      "group": "paraphrase",
+      "query": "stop letting one service own my music metadata",
+      "fts": [
+        {
+          "conv_title": "Personal AI Tools Integration",
+          "msg_id": "b3164dc6-fdaf-46b9-bd1a-38417960fde1",
+          "role": "assistant",
+          "has_code": true,
+          "score": "fts_rank_1",
+          "snippet": "…and distribution.\n\n---\n\n## My honest take\n\nThis is useful for you **only if you stop thinking of it as a standalone app** and instead treat it as an **MCP/data layer for your agents**.\n\nThe winning use case is:\n\n> “Every important part of m…"
+        },
+        {
+          "conv_title": "Address History App Ideas",
+          "msg_id": "0681ea3d-5221-451b-af68-8f22d1d7a8f5",
+          "role": "assistant",
+          "has_code": true,
+          "score": "fts_rank_2",
+          "snippet": "…ely.\n\n---\n\nThe simplest way to describe it:\n\n> **A personal data layer lets you stop re-explaining yourself to every app, every AI chat, every resume draft, every form, and every project restart.**\n\nFor you, the killer benefit is probably:\n…"
+        },
+        {
+          "conv_title": "Proofreading dev music service documentation",
+          "msg_id": "019e4be7-e23f-7c32-ba06-6632c37021c8",
+          "role": "assistant",
+          "has_code": false,
+          "score": "fts_rank_3",
+          "snippet": "…cessary tension. I think the right move is to keep one repo for simplicity, but stop trying to make the streaming backend serverless—decouple the deployment targets even if the code stays together.\n\nNow I'm thinking about how to organize th…"
+        },
+        {
+          "conv_title": "Proofreading dev music service documentation",
+          "msg_id": "019e4be2-4601-711e-a134-8a09386c00ae",
+          "role": "assistant",
+          "has_code": true,
+          "score": "fts_rank_4",
+          "snippet": "…th for the Spotify/focus box, and the local integration section with `/play`, `/stop`, and `/resume` all align properly within the 22-character width. Verifying the remaining box widths in the diagram — the \"mostly stateless\" box checks out…"
+        }
+      ],
+      "vector": [
+        {
+          "conv_title": "Improving barif-7/dev-music-service with Spotify integration",
+          "msg_id": "019dbd34-267e-785b-821f-4f0a72c73be2",
+          "role": "assistant",
+          "has_code": true,
+          "score": 16.538,
+          "snippet": "…a \"music year in review\" style stats page (like Receiptify or Spotify Wrapped clones) — very popular and shareable\n- Show what a friend is listening to if they connect their account\n\n**Recommendations Engine**\n- Pull top tracks → feed them …"
+        },
+        {
+          "conv_title": "Local MCP Server Integration",
+          "msg_id": "05a6e697-4d3a-470e-9859-31d8eacad585",
+          "role": "assistant",
+          "has_code": true,
+          "score": 16.5497,
+          "snippet": "…If the backend does not currently have a metadata endpoint, either:\n- implement one in FastAPI using existing search/extraction logic, or\n- document that metadata is derived from search results only.\n\nPrefer a small backend endpoint if it i…"
+        },
+        {
+          "conv_title": "Credible ML Programs",
+          "msg_id": "bcc3c2e8-9102-40b7-a674-b46247750271",
+          "role": "assistant",
+          "has_code": false,
+          "score": 16.7537,
+          "snippet": "…n point is not simply “Spotify pays nothing.” The more accurate issue is:\n\n> **Money flows through a complex rights-holder system, and artists do not always experience platform growth as transparent, predictable, or fair income.**\n\nSpotify …"
+        },
+        {
+          "conv_title": "OpenClaw Agent Commands",
+          "msg_id": "63d354b7-94f5-42fd-aca4-f03181886cea",
+          "role": "assistant",
+          "has_code": false,
+          "score": 16.7797,
+          "snippet": "Yes — **your free music service project can help**, but it is **less directly aligned** than your search/indexing projects.\n\nThe best angle is to frame it around **discovery, retrieval, backend design, and scalable request handling**.\n\n## G…"
+        },
+        {
+          "conv_title": "OpenClaw Automations List",
+          "msg_id": "b2cb94f6-9bf6-4389-adfa-ebb8b3535ac5",
+          "role": "assistant",
+          "has_code": true,
+          "score": 16.8199,
+          "snippet": "…\n## What you *can* do instead\n\nBuild a **lawful version** of the service around one of these models:\n\n### 1. **User-owned or licensed audio**\nClients upload audio they own or you have rights to host.\n\n### 2. **Your own catalog**\nYou host tr…"
+        }
+      ],
+      "fused": [
+        {
+          "conv_title": "Personal AI Tools Integration",
+          "msg_id": "b3164dc6-fdaf-46b9-bd1a-38417960fde1",
+          "role": "assistant",
+          "has_code": true,
+          "score": 0.016393,
+          "snippet": "…and distribution.\n\n---\n\n## My honest take\n\nThis is useful for you **only if you stop thinking of it as a standalone app** and instead treat it as an **MCP/data layer for your agents**.\n\nThe winning use case is:\n\n> “Every important part of m…",
+          "fts_rank": 1,
+          "vector_rank": null
+        },
+        {
+          "conv_title": "Improving barif-7/dev-music-service with Spotify integration",
+          "msg_id": "019dbd34-267e-785b-821f-4f0a72c73be2",
+          "role": "assistant",
+          "has_code": true,
+          "score": 0.016393,
+          "snippet": "…a \"music year in review\" style stats page (like Receiptify or Spotify Wrapped clones) — very popular and shareable\n- Show what a friend is listening to if they connect their account\n\n**Recommendations Engine**\n- Pull top tracks → feed them …",
+          "fts_rank": null,
+          "vector_rank": 1
+        },
+        {
+          "conv_title": "Address History App Ideas",
+          "msg_id": "0681ea3d-5221-451b-af68-8f22d1d7a8f5",
+          "role": "assistant",
+          "has_code": true,
+          "score": 0.016129,
+          "snippet": "…ely.\n\n---\n\nThe simplest way to describe it:\n\n> **A personal data layer lets you stop re-explaining yourself to every app, every AI chat, every resume draft, every form, and every project restart.**\n\nFor you, the killer benefit is probably:\n…",
+          "fts_rank": 2,
+          "vector_rank": null
+        },
+        {
+          "conv_title": "Local MCP Server Integration",
+          "msg_id": "05a6e697-4d3a-470e-9859-31d8eacad585",
+          "role": "assistant",
+          "has_code": true,
+          "score": 0.016129,
+          "snippet": "…If the backend does not currently have a metadata endpoint, either:\n- implement one in FastAPI using existing search/extraction logic, or\n- document that metadata is derived from search results only.\n\nPrefer a small backend endpoint if it i…",
+          "fts_rank": null,
+          "vector_rank": 2
+        },
+        {
+          "conv_title": "Proofreading dev music service documentation",
+          "msg_id": "019e4be7-e23f-7c32-ba06-6632c37021c8",
+          "role": "assistant",
+          "has_code": false,
+          "score": 0.015873,
+          "snippet": "…cessary tension. I think the right move is to keep one repo for simplicity, but stop trying to make the streaming backend serverless—decouple the deployment targets even if the code stays together.\n\nNow I'm thinking about how to organize th…",
+          "fts_rank": 3,
+          "vector_rank": null
+        }
+      ]
+    },
+    {
+      "group": "code_intent",
+      "query": "VIPER plugin filtering architecture for search",
+      "fts": [
+        {
+          "conv_title": "Career Transition Summary",
+          "msg_id": "322d3b14-6cb9-4518-8fb9-340b4f6266ca",
+          "role": "assistant",
+          "has_code": false,
+          "score": "fts_rank_1",
+          "snippet": "…cluded:\n\n- AI Recap on iOS\n- Search experience redevelopment\n- Search filters\n- VIPER architecture\n- pagination\n- RTM events\n- performance improvements\n- stale data reduction\n- crash/error reduction\n- test coverage\n- diffable data sources\n-…"
+        },
+        {
+          "conv_title": "Career Transition Summary",
+          "msg_id": "f921d99d-7116-4e77-9c92-8207ed34ff68",
+          "role": "assistant",
+          "has_code": false,
+          "score": "fts_rank_2",
+          "snippet": "…s was on making your Slack work sound deeper and more senior: AI Recap, Search, VIPER architecture, pagination, RTM events, performance improvements, stale data reduction, testing, and search filters.\n\nYou were also preparing for senior iOS…"
+        },
+        {
+          "conv_title": "UI Redesign Request",
+          "msg_id": "1411c26f-8dd4-4307-8e30-9826b79c9ed1",
+          "role": "tool",
+          "has_code": false,
+          "score": "fts_rank_3",
+          "snippet": "…I/ML transition, and personal prefs like concise interview answers, Swift/UIKit/VIPER/MVVM, practical end-to-end prompts\n- [PRIOR_ASSISTANT_OUTPUT] [c9] A@2026-05-13T14:55:42Z, -26d: resume MCP should be a career-context MCP with tools like…"
+        },
+        {
+          "conv_title": "Resume Update and Projects",
+          "msg_id": "e00e775e-e172-4fa3-b48f-adc14942b3f0",
+          "role": "assistant",
+          "has_code": true,
+          "score": "fts_rank_4",
+          "snippet": "…   \"architecture_and_tools\": [\n                    \"MVVM\",\n                    \"VIPER\",\n                    \"Dependency Injection\",\n                    \"Coordinator Pattern\",\n                    \"Structured Logging\",\n                    \"Ca…"
+        },
+        {
+          "conv_title": "Resume Update and Projects",
+          "msg_id": "00c347e5-785f-4d82-8d94-ac3bd2d61b6d",
+          "role": "assistant",
+          "has_code": true,
+          "score": "fts_rank_5",
+          "snippet": "…PyTorch\",\n      \"JAX\"\n    ],\n    \"architectureAndTools\": [\n      \"MVVM\",\n      \"VIPER\",\n      \"Dependency Injection\",\n      \"Coordinator Pattern\",\n      \"Structured Logging\",\n      \"Caching\",\n      \"Rate-limit Recovery\",\n      \"Git\",\n      …"
+        }
+      ],
+      "vector": [
+        {
+          "conv_title": "Add loading indicator",
+          "msg_id": "baecae16-6d41-4636-b363-9ae22b5c98d3",
+          "role": "assistant",
+          "has_code": true,
+          "score": 15.0521,
+          "snippet": "…re asking about architecture.**  \nHere’s a clean way to set up **local search & filtering** for your Pokédex with good separation of concerns, using a `StoredIndex` + `SearchBarView`.  \n\n---\n\n## **Key Goals**\n1. **Decouple search from the v…"
+        },
+        {
+          "conv_title": "Search filters UI design",
+          "msg_id": "22b87c2d-0b5f-472d-a3b6-29d4817c519d",
+          "role": "assistant",
+          "has_code": true,
+          "score": 15.9623,
+          "snippet": "Got it ✅ You want a **search filters UI** for your Pokédex. Let’s break this down into **design + implementation** steps.  \n\n---\n\n## 🎨 UI Design (Filters for Pokédex)\nTypical filters for a Pokédex include:\n- **Type filter** (Fire, Water, G…"
+        },
+        {
+          "conv_title": "OpenClaw Automations List",
+          "msg_id": "c6f2cc64-3e99-4e57-bdb2-949130749009",
+          "role": "assistant",
+          "has_code": true,
+          "score": 15.9713,
+          "snippet": "… the current project, and here’s the clearest way to think about it.\n\n# Current architecture\n\n## High level flow\n\n```text\nClient\n  ├─ GET /search?query=...\n  └─ GET /stream?url=...\n\nFastAPI (main.py)\n  ├─ /search -> YTDLPService.search(quer…"
+        },
+        {
+          "conv_title": "OpenClaw Automations List",
+          "msg_id": "e3d2adb0-80e8-407b-93eb-1fdb6f1938d5",
+          "role": "assistant",
+          "has_code": false,
+          "score": 15.9746,
+          "snippet": "{\"queries\":[\"+(free-music-service) architecture async requests performance latency recovery --QDF=0\",\"FastAPI yt-dlp ffmpeg websocket search stream retry performance\",\"search stream FastAPI ytdlp_service main.py\"],\"source_filter\":[\"files_up…"
+        },
+        {
+          "conv_title": "Apple Health Team Interview",
+          "msg_id": "cfaef649-84fb-4889-8f40-c55dd53991db",
+          "role": "assistant",
+          "has_code": true,
+          "score": 16.0702,
+          "snippet": "Designing architecture for **Search**—especially in iOS—depends on the **scale**, **real-time needs**, and **complexity** of your search experience. Since you're interviewing with Apple (and you’ve worked on search at Slack), here's a break…"
+        }
+      ],
+      "fused": [
+        {
+          "conv_title": "Career Transition Summary",
+          "msg_id": "322d3b14-6cb9-4518-8fb9-340b4f6266ca",
+          "role": "assistant",
+          "has_code": false,
+          "score": 0.016393,
+          "snippet": "…cluded:\n\n- AI Recap on iOS\n- Search experience redevelopment\n- Search filters\n- VIPER architecture\n- pagination\n- RTM events\n- performance improvements\n- stale data reduction\n- crash/error reduction\n- test coverage\n- diffable data sources\n-…",
+          "fts_rank": 1,
+          "vector_rank": null
+        },
+        {
+          "conv_title": "Add loading indicator",
+          "msg_id": "baecae16-6d41-4636-b363-9ae22b5c98d3",
+          "role": "assistant",
+          "has_code": true,
+          "score": 0.016393,
+          "snippet": "…re asking about architecture.**  \nHere’s a clean way to set up **local search & filtering** for your Pokédex with good separation of concerns, using a `StoredIndex` + `SearchBarView`.  \n\n---\n\n## **Key Goals**\n1. **Decouple search from the v…",
+          "fts_rank": null,
+          "vector_rank": 1
+        },
+        {
+          "conv_title": "Career Transition Summary",
+          "msg_id": "f921d99d-7116-4e77-9c92-8207ed34ff68",
+          "role": "assistant",
+          "has_code": false,
+          "score": 0.016129,
+          "snippet": "…s was on making your Slack work sound deeper and more senior: AI Recap, Search, VIPER architecture, pagination, RTM events, performance improvements, stale data reduction, testing, and search filters.\n\nYou were also preparing for senior iOS…",
+          "fts_rank": 2,
+          "vector_rank": null
+        },
+        {
+          "conv_title": "Search filters UI design",
+          "msg_id": "22b87c2d-0b5f-472d-a3b6-29d4817c519d",
+          "role": "assistant",
+          "has_code": true,
+          "score": 0.016129,
+          "snippet": "Got it ✅ You want a **search filters UI** for your Pokédex. Let’s break this down into **design + implementation** steps.  \n\n---\n\n## 🎨 UI Design (Filters for Pokédex)\nTypical filters for a Pokédex include:\n- **Type filter** (Fire, Water, G…",
+          "fts_rank": null,
+          "vector_rank": 2
+        },
+        {
+          "conv_title": "UI Redesign Request",
+          "msg_id": "1411c26f-8dd4-4307-8e30-9826b79c9ed1",
+          "role": "tool",
+          "has_code": false,
+          "score": 0.015873,
+          "snippet": "…I/ML transition, and personal prefs like concise interview answers, Swift/UIKit/VIPER/MVVM, practical end-to-end prompts\n- [PRIOR_ASSISTANT_OUTPUT] [c9] A@2026-05-13T14:55:42Z, -26d: resume MCP should be a career-context MCP with tools like…",
+          "fts_rank": 3,
+          "vector_rank": null
+        }
+      ]
+    },
+    {
+      "group": "code_intent",
+      "query": "protocol interface for swapping audio feature providers",
+      "fts": [],
+      "vector": [
+        {
+          "conv_title": "Tech Resume Education Tips",
+          "msg_id": "a6f227a0-08f2-4ff7-a00f-1cd4fee52de7",
+          "role": "assistant",
+          "has_code": false,
+          "score": 17.5511,
+          "snippet": "…m Apple devices (iPhones, iPads, Macs) over **Wi-Fi** using Apple’s **AirPlay 1 protocol**.  \n\n---\n\n## **🔧 How It Works – Step by Step**\n### **1️⃣ Discovery (How Your Pi Shows Up in AirPlay)**\n- **Shairport Sync registers as an AirPlay dev…"
+        },
+        {
+          "conv_title": "Improving barif-7/dev-music-service with Spotify integration",
+          "msg_id": "019df472-d0d7-7cb4-94ad-4fd9f24df548",
+          "role": "assistant",
+          "has_code": true,
+          "score": 17.7624,
+          "snippet": "… to ADHD — crowd noise is an irregular, unpredictable sound layer that competes for attention in a way that even lyrics don't. `FocusProfile` handles reading and writing your settings to a `focus_profile.json` file so they survive restarts.…"
+        },
+        {
+          "conv_title": "Audio Streaming Equalizer Library",
+          "msg_id": "3b6ac1f2-70e4-42c3-9c3a-74ca3aaa646d",
+          "role": "user",
+          "has_code": false,
+          "score": 17.8719,
+          "snippet": "Give me a a library I can build out an audio streaming equalizer that has ui option that look like the picture attached"
+        },
+        {
+          "conv_title": "Improving dev music service deployment",
+          "msg_id": "019e95b9-8b33-7af8-9694-35c332ef4b5e",
+          "role": "assistant",
+          "has_code": true,
+          "score": 18.0041,
+          "snippet": "…tion viable, I should build the audio features service behind an abstraction—an interface that lets me swap in Essentia or other providers as fallbacks without tearing apart the architecture. That way adding a second provider becomes a matt…"
+        },
+        {
+          "conv_title": "Resolve terminal issue",
+          "msg_id": "9a2ccd3b-752c-4acd-98eb-dd8c76b75916",
+          "role": "assistant",
+          "has_code": false,
+          "score": 18.0463,
+          "snippet": "…n805201search0\n\nThe most practical Swift-side options are:\n\n- **AVFoundation** for recording microphone audio locally.\n- **Speech / native Apple audio tooling** for local UX helpers if needed.\n- A **community Swift OpenAI client**, with **…"
+        }
+      ],
+      "fused": [
+        {
+          "conv_title": "Tech Resume Education Tips",
+          "msg_id": "a6f227a0-08f2-4ff7-a00f-1cd4fee52de7",
+          "role": "assistant",
+          "has_code": false,
+          "score": 0.016393,
+          "snippet": "…m Apple devices (iPhones, iPads, Macs) over **Wi-Fi** using Apple’s **AirPlay 1 protocol**.  \n\n---\n\n## **🔧 How It Works – Step by Step**\n### **1️⃣ Discovery (How Your Pi Shows Up in AirPlay)**\n- **Shairport Sync registers as an AirPlay dev…",
+          "fts_rank": null,
+          "vector_rank": 1
+        },
+        {
+          "conv_title": "Improving barif-7/dev-music-service with Spotify integration",
+          "msg_id": "019df472-d0d7-7cb4-94ad-4fd9f24df548",
+          "role": "assistant",
+          "has_code": true,
+          "score": 0.016129,
+          "snippet": "… to ADHD — crowd noise is an irregular, unpredictable sound layer that competes for attention in a way that even lyrics don't. `FocusProfile` handles reading and writing your settings to a `focus_profile.json` file so they survive restarts.…",
+          "fts_rank": null,
+          "vector_rank": 2
+        },
+        {
+          "conv_title": "Audio Streaming Equalizer Library",
+          "msg_id": "3b6ac1f2-70e4-42c3-9c3a-74ca3aaa646d",
+          "role": "user",
+          "has_code": false,
+          "score": 0.015873,
+          "snippet": "Give me a a library I can build out an audio streaming equalizer that has ui option that look like the picture attached",
+          "fts_rank": null,
+          "vector_rank": 3
+        },
+        {
+          "conv_title": "Improving dev music service deployment",
+          "msg_id": "019e95b9-8b33-7af8-9694-35c332ef4b5e",
+          "role": "assistant",
+          "has_code": true,
+          "score": 0.015625,
+          "snippet": "…tion viable, I should build the audio features service behind an abstraction—an interface that lets me swap in Essentia or other providers as fallbacks without tearing apart the architecture. That way adding a second provider becomes a matt…",
+          "fts_rank": null,
+          "vector_rank": 4
+        },
+        {
+          "conv_title": "Resolve terminal issue",
+          "msg_id": "9a2ccd3b-752c-4acd-98eb-dd8c76b75916",
+          "role": "assistant",
+          "has_code": false,
+          "score": 0.015385,
+          "snippet": "…n805201search0\n\nThe most practical Swift-side options are:\n\n- **AVFoundation** for recording microphone audio locally.\n- **Speech / native Apple audio tooling** for local UX helpers if needed.\n- A **community Swift OpenAI client**, with **…",
+          "fts_rank": null,
+          "vector_rank": 5
+        }
+      ]
+    },
+    {
+      "group": "code_intent",
+      "query": "Slack-style search bar component",
+      "fts": [
+        {
+          "conv_title": "GitHub project summary",
+          "msg_id": "8092248e-2f3d-41cc-b139-10290651b948",
+          "role": "assistant",
+          "has_code": true,
+          "score": "fts_rank_1",
+          "snippet": "…h imports from `conversations.json`, local SQLite storage, FTS5 indexing, and a Slack-style search UI. The repo also includes MCP support so coding agents such as Claude Code, Codex, Cursor, or other MCP-compatible tools can query the user’…"
+        },
+        {
+          "conv_title": "UIView rendering process",
+          "msg_id": "38ea83c1-cce6-4a10-abbb-7d47b8831569",
+          "role": "assistant",
+          "has_code": true,
+          "score": "fts_rank_2",
+          "snippet": "…r: String`\n- `isFocused: Bool`\n\n---\n\n# 🧠 3. VIPER “View-Based” Pattern Flow\n\nA Slack-style view-based feature looks like this:\n\n```\nUser types text → View emits event\n                      │\n                      ▼\n                Presente…"
+        }
+      ],
+      "vector": [
+        {
+          "conv_title": "Swift Singleton Pattern",
+          "msg_id": "2b0f2a68-2040-4f4f-aea1-2129f5276e77",
+          "role": "assistant",
+          "has_code": false,
+          "score": 12.8781,
+          "snippet": "The `SearchBarView` class is a comprehensive and highly customizable search bar component designed for Slack’s iOS app. It integrates with various features like autocomplete, text editing, and theming to provide an intuitive search experien…"
+        },
+        {
+          "conv_title": "Grid view help",
+          "msg_id": "17e4b378-c45d-4b97-b083-98531ba8dc66",
+          "role": "user",
+          "has_code": false,
+          "score": 13.7652,
+          "snippet": "Give me a search bar view that looks like the one in Slack's mobile app"
+        },
+        {
+          "conv_title": "Grid view help",
+          "msg_id": "6eb8e43d-68ff-4f4d-87a0-dfa833eaf60d",
+          "role": "assistant",
+          "has_code": true,
+          "score": 14.8711,
+          "snippet": "…iewController**. This way you can keep your current UIKit grid setup but with a Slack-style search bar.  \n\nDo you want me to do that?"
+        },
+        {
+          "conv_title": "Add loading indicator",
+          "msg_id": "13da60b3-9e22-4dbf-80bc-3c4d8508b8c6",
+          "role": "user",
+          "has_code": false,
+          "score": 15.599,
+          "snippet": "what is the best way to architect local search/filtering using a StoredIndex class with a search bar view"
+        },
+        {
+          "conv_title": "Grid view help",
+          "msg_id": "74242a3a-0391-4cfb-a53c-7fb0e1726d93",
+          "role": "assistant",
+          "has_code": true,
+          "score": 15.6966,
+          "snippet": "Perfect! You want a **UI element below the search bar** that:  \n\n- Has **rounded corners**  \n- Shows the **company logo** from the search result  \n- Lets the user **add it to the grid** if it was found  \n\nHere’s a **clean SwiftUI approach**…"
+        }
+      ],
+      "fused": [
+        {
+          "conv_title": "GitHub project summary",
+          "msg_id": "8092248e-2f3d-41cc-b139-10290651b948",
+          "role": "assistant",
+          "has_code": true,
+          "score": 0.016393,
+          "snippet": "…h imports from `conversations.json`, local SQLite storage, FTS5 indexing, and a Slack-style search UI. The repo also includes MCP support so coding agents such as Claude Code, Codex, Cursor, or other MCP-compatible tools can query the user’…",
+          "fts_rank": 1,
+          "vector_rank": null
+        },
+        {
+          "conv_title": "Swift Singleton Pattern",
+          "msg_id": "2b0f2a68-2040-4f4f-aea1-2129f5276e77",
+          "role": "assistant",
+          "has_code": false,
+          "score": 0.016393,
+          "snippet": "The `SearchBarView` class is a comprehensive and highly customizable search bar component designed for Slack’s iOS app. It integrates with various features like autocomplete, text editing, and theming to provide an intuitive search experien…",
+          "fts_rank": null,
+          "vector_rank": 1
+        },
+        {
+          "conv_title": "UIView rendering process",
+          "msg_id": "38ea83c1-cce6-4a10-abbb-7d47b8831569",
+          "role": "assistant",
+          "has_code": true,
+          "score": 0.016129,
+          "snippet": "…r: String`\n- `isFocused: Bool`\n\n---\n\n# 🧠 3. VIPER “View-Based” Pattern Flow\n\nA Slack-style view-based feature looks like this:\n\n```\nUser types text → View emits event\n                      │\n                      ▼\n                Presente…",
+          "fts_rank": 2,
+          "vector_rank": null
+        },
+        {
+          "conv_title": "Grid view help",
+          "msg_id": "17e4b378-c45d-4b97-b083-98531ba8dc66",
+          "role": "user",
+          "has_code": false,
+          "score": 0.016129,
+          "snippet": "Give me a search bar view that looks like the one in Slack's mobile app",
+          "fts_rank": null,
+          "vector_rank": 2
+        },
+        {
+          "conv_title": "Grid view help",
+          "msg_id": "6eb8e43d-68ff-4f4d-87a0-dfa833eaf60d",
+          "role": "assistant",
+          "has_code": true,
+          "score": 0.015873,
+          "snippet": "…iewController**. This way you can keep your current UIKit grid setup but with a Slack-style search bar.  \n\nDo you want me to do that?",
+          "fts_rank": null,
+          "vector_rank": 3
+        }
+      ]
+    },
+    {
+      "group": "code_intent",
+      "query": "parse the ChatGPT mapping / current_node tree",
+      "fts": [
+        {
+          "conv_title": "GitHub project summary",
+          "msg_id": "06ec493f-37a5-4450-be4b-a0b2c9551694",
+          "role": "assistant",
+          "has_code": true,
+          "score": "fts_rank_1",
+          "snippet": "…502   \\u2514\\u2500\\u2500 MCP config/install helpers\\n\\u2502\\n\\u251c\\u2500\\u2500 Parser/import layer\\n\\u2502   \\u251c\\u2500\\u2500 ChatGPT conversations.json parser\\n\\u2502   \\u251c\\u2500\\u2500 Claude conversation/project import support\\n\\u25…"
+        },
+        {
+          "conv_title": "GitHub project summary",
+          "msg_id": "8092248e-2f3d-41cc-b139-10290651b948",
+          "role": "assistant",
+          "has_code": true,
+          "score": "fts_rank_2",
+          "snippet": "…istration\n│   ├── import orchestration\n│   └── MCP config/install helpers\n│\n├── Parser/import layer\n│   ├── ChatGPT conversations.json parser\n│   ├── Claude conversation/project import support\n│   ├── attachment/link/memory extraction\n│   └…"
+        },
+        {
+          "conv_title": "GitHub project summary",
+          "msg_id": "51a1df41-9d23-446c-84c5-978fd4ffeb7b",
+          "role": "tool",
+          "has_code": true,
+          "score": "fts_rank_3",
+          "snippet": "…   │   ├── db.ts         # SQLite init, schema, FTS5 triggers\n[L59] │   │   ├── parser.ts     # conversations.json tree parser\n[L60] │   │   └── preload.ts    # Secure IPC bridge (contextBridge)\n[L61] │   └── renderer/\n[L62] │       ├── ind…"
+        },
+        {
+          "conv_title": "UI Redesign Request",
+          "msg_id": "00b6ef91-28bf-439e-af5d-5a7ede9b1b6e",
+          "role": "tool",
+          "has_code": true,
+          "score": "fts_rank_4",
+          "snippet": "…\\n+│   │   ├── db.ts         # SQLite init, schema, FTS5 triggers\\n+│   │   ├── parser.ts     # conversations.json tree parser\\n+│   │   └── preload.ts    # Secure IPC bridge (contextBridge)\\n+│   └── renderer/\\n+│       ├── index.html\\n+│ …"
+        },
+        {
+          "conv_title": "Qwen-Embeddings-8B Mac mini",
+          "msg_id": "85125305-699a-4c9a-9db9-49a1630376a8",
+          "role": "tool",
+          "has_code": true,
+          "score": "fts_rank_5",
+          "snippet": "…7d38b957f59b3be86223240d5f\n[L3] content: /**\n[L4]  * ChatGPT conversations.json parser\n[L5]  *\n[L6]  * Key design decisions:\n[L7]  * - Walk the mapping tree via parent pointers, not insertion order\n[L8]  * - Reconstruct the active branch by…"
+        }
+      ],
+      "vector": [
+        {
+          "conv_title": "LCA in Binary Tree",
+          "msg_id": "f54558df-88d6-494f-8a0d-8b7be724fcb8",
+          "role": "assistant",
+          "has_code": true,
+          "score": 15.642,
+          "snippet": "To find the **Lowest Common Ancestor (LCA)** of two nodes in a **Binary Tree**, follow these approaches:\n\n---\n\n### **Recursive Approach (DFS)**\nThis approach works for a **Binary Tree (not necessarily BST)**.\n\n#### **Algorithm:**\n1. **Base …"
+        },
+        {
+          "conv_title": "ChatGPT conversation search tool",
+          "msg_id": "019dbf27-6a65-7550-bf43-d74501a34c26",
+          "role": "assistant",
+          "has_code": false,
+          "score": 16.3878,
+          "snippet": " These are solid notes — clearly written by someone who's actually parsed the format. A few thoughts:\n\nThe `current_node` guidance is the most important and most commonly missed thing. Most people who try to build this naively flatten `mapp…"
+        },
+        {
+          "conv_title": "LCA in Binary Tree",
+          "msg_id": "cb008e9e-19bb-45da-a068-aa835f14f9dd",
+          "role": "assistant",
+          "has_code": true,
+          "score": 16.4662,
+          "snippet": "### **Lowest Common Ancestor (LCA) in a Binary Tree**\nThe **Lowest Common Ancestor (LCA)** of two nodes in a **binary tree** is the **lowest** node in the tree that has both nodes as descendants.\n\n---\n\n## **🔹 Approach 1: Recursive DFS (O(N…"
+        },
+        {
+          "conv_title": "Games for ADHD",
+          "msg_id": "63e53240-4374-4fd8-a534-0ec4dfb7064a",
+          "role": "user",
+          "has_code": false,
+          "score": 16.5129,
+          "snippet": "Flatten a binary tree and then print out the node IDs of a \"CommentNode Tree\" in depth based format."
+        },
+        {
+          "conv_title": "Local MCP Server Integration",
+          "msg_id": "185302d9-b48b-4f19-9163-dcf144248fe2",
+          "role": "assistant",
+          "has_code": true,
+          "score": 16.5506,
+          "snippet": "…  const href = el.getAttribute?.('href') || el.href || '';\n    const fromHref = parseFilePathFromHref(href);\n\n    const fromAttr =\n      el.getAttribute?.('data-file-path') ||\n      el.getAttribute?.('data-path') ||\n      el.getAttribute?.(…"
+        }
+      ],
+      "fused": [
+        {
+          "conv_title": "ChatGPT conversation search tool",
+          "msg_id": "019dbf27-6a65-7550-bf43-d74501a34c26",
+          "role": "assistant",
+          "has_code": false,
+          "score": 0.030214,
+          "snippet": " These are solid notes — clearly written by someone who's actually parsed the format. A few thoughts:\n\nThe `current_node` guidance is the most important and most commonly missed thing. Most people who try to build this naively flatten `mapp…",
+          "fts_rank": 11,
+          "vector_rank": 2
+        },
+        {
+          "conv_title": "ChatGPT conversation search tool",
+          "msg_id": "019e37de-7c61-7335-9910-d72e74e0398c",
+          "role": "assistant",
+          "has_code": true,
+          "score": 0.029418,
+          "snippet": "…*different schema**. The structures don't overlap meaningfully, so the existing parser won't work on it. You need a second parser.\n\nThe Claude export shape (based on what's been publicly documented):\n\n```json\n[\n  {\n    \"uuid\": \"abc-123-...\"…",
+          "fts_rank": 9,
+          "vector_rank": 7
+        },
+        {
+          "conv_title": "conversations.json structure",
+          "msg_id": "77fcd0ab-629c-4d59-bedb-4c9f0a51fbe1",
+          "role": "assistant",
+          "has_code": true,
+          "score": 0.028665,
+          "snippet": "… of just strings, or the useful content may be buried in metadata.\n\nA practical parser often looks like this:\n\n```python\nimport json\nfrom datetime import datetime\n\nwith open(\"conversations.json\", \"r\", encoding=\"utf-8\") as f:\n    conversatio…",
+          "fts_rank": 14,
+          "vector_rank": 6
+        },
+        {
+          "conv_title": "GitHub project summary",
+          "msg_id": "06ec493f-37a5-4450-be4b-a0b2c9551694",
+          "role": "assistant",
+          "has_code": true,
+          "score": 0.016393,
+          "snippet": "…502   \\u2514\\u2500\\u2500 MCP config/install helpers\\n\\u2502\\n\\u251c\\u2500\\u2500 Parser/import layer\\n\\u2502   \\u251c\\u2500\\u2500 ChatGPT conversations.json parser\\n\\u2502   \\u251c\\u2500\\u2500 Claude conversation/project import support\\n\\u25…",
+          "fts_rank": 1,
+          "vector_rank": null
+        },
+        {
+          "conv_title": "LCA in Binary Tree",
+          "msg_id": "f54558df-88d6-494f-8a0d-8b7be724fcb8",
+          "role": "assistant",
+          "has_code": true,
+          "score": 0.016393,
+          "snippet": "To find the **Lowest Common Ancestor (LCA)** of two nodes in a **Binary Tree**, follow these approaches:\n\n---\n\n### **Recursive Approach (DFS)**\nThis approach works for a **Binary Tree (not necessarily BST)**.\n\n#### **Algorithm:**\n1. **Base …",
+          "fts_rank": null,
+          "vector_rank": 1
+        }
+      ]
+    }
+  ]
+}
