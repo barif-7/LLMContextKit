@@ -477,7 +477,7 @@ export function upsertConversations(
     // Walk the mapping tree — identical logic to parser.ts
     const children: Record<string, string[]> = {}
     for (const nodeId of Object.keys(mapping)) {
-      const parent = mapping[nodeId].parent
+      const parent = mapping[nodeId]?.parent
       if (parent) {
         if (!children[parent]) children[parent] = []
         children[parent].push(nodeId)
@@ -485,7 +485,7 @@ export function upsertConversations(
     }
 
     const roots = Object.keys(mapping).filter(
-      (id) => !mapping[id].parent || !mapping[mapping[id].parent]
+      (id) => !mapping[id]?.parent || !mapping[mapping[id].parent]
     )
 
     const activePath = new Set<string>()

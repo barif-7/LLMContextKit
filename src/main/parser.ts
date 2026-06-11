@@ -18,6 +18,7 @@ export interface ParseResult {
   messages: number
   skipped: number
   durationMs: number
+  errors?: string[]
 }
 
 export interface ParseOptions {
@@ -79,31 +80,35 @@ export async function parseConversations(
   const tableExists = (name: string) =>
     !!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name)
 
-  if (!merge) {
-    if (tableExists('message_embeddings')) db.exec(`DELETE FROM message_embeddings;`)
-    db.exec(`DELETE FROM attachment_contents; DELETE FROM code_blocks; DELETE FROM attachments; DELETE FROM links; DELETE FROM memories; DELETE FROM messages; DELETE FROM conversations;`)
-  } else {
-    const ids = rawConvs.map((c: any) => c?.id ?? c?.conversation_id).filter(Boolean)
-    if (ids.length) {
-      const placeholders = ids.map(() => '?').join(',')
-      if (tableExists('message_embeddings')) {
-        db.prepare(`DELETE FROM message_embeddings WHERE conversation_id IN (${placeholders})`).run(...ids)
+  // Deletes run inside the same transaction as the inserts: a crash or a
+  // malformed export must never commit the wipe without the re-import.
+  const wipeForImport = () => {
+    if (!merge) {
+      if (tableExists('message_embeddings')) db.exec(`DELETE FROM message_embeddings;`)
+      db.exec(`DELETE FROM attachment_contents; DELETE FROM code_blocks; DELETE FROM attachments; DELETE FROM links; DELETE FROM memories; DELETE FROM messages; DELETE FROM conversations;`)
+    } else {
+      const ids = rawConvs.map((c: any) => c?.id ?? c?.conversation_id).filter(Boolean)
+      if (ids.length) {
+        const placeholders = ids.map(() => '?').join(',')
+        if (tableExists('message_embeddings')) {
+          db.prepare(`DELETE FROM message_embeddings WHERE conversation_id IN (${placeholders})`).run(...ids)
+        }
+        db.prepare(`DELETE FROM code_blocks WHERE message_id IN (SELECT id FROM messages WHERE conv_id IN (${placeholders}))`).run(...ids)
+        db.prepare(`DELETE FROM attachment_contents WHERE message_id IN (SELECT id FROM messages WHERE conv_id IN (${placeholders}))`).run(...ids)
+        db.prepare(`DELETE FROM attachments WHERE conv_id IN (${placeholders})`).run(...ids)
+        db.prepare(`DELETE FROM links WHERE conv_id IN (${placeholders})`).run(...ids)
+        db.prepare(`DELETE FROM memories WHERE conv_id IN (${placeholders})`).run(...ids)
+        db.prepare(`DELETE FROM messages WHERE conv_id IN (${placeholders})`).run(...ids)
+        db.prepare(`DELETE FROM conversations WHERE id IN (${placeholders})`).run(...ids)
       }
-      db.prepare(`DELETE FROM code_blocks WHERE message_id IN (SELECT id FROM messages WHERE conv_id IN (${placeholders}))`).run(...ids)
-      db.prepare(`DELETE FROM attachment_contents WHERE message_id IN (SELECT id FROM messages WHERE conv_id IN (${placeholders}))`).run(...ids)
-      db.prepare(`DELETE FROM attachments WHERE conv_id IN (${placeholders})`).run(...ids)
-      db.prepare(`DELETE FROM links WHERE conv_id IN (${placeholders})`).run(...ids)
-      db.prepare(`DELETE FROM memories WHERE conv_id IN (${placeholders})`).run(...ids)
-      db.prepare(`DELETE FROM messages WHERE conv_id IN (${placeholders})`).run(...ids)
-      db.prepare(`DELETE FROM conversations WHERE id IN (${placeholders})`).run(...ids)
     }
   }
 
-  const importAll = db.transaction(() => {
-    for (let ci = 0; ci < rawConvs.length; ci++) {
-      const conv = rawConvs[ci]
-      if (!conv || typeof conv !== 'object') continue
+  const errors: string[] = []
 
+  // Nested db.transaction calls become SAVEPOINTs, so one malformed
+  // conversation rolls back alone instead of aborting the whole import.
+  const processConversation = db.transaction((conv: any, ci: number) => {
       const convId: string = conv.id ?? conv.conversation_id ?? conv.conversationId ?? `conv_${ci}`
       const convTitle: string = conv.title || conv.name || 'Untitled conversation'
       const currentNode: string = conv.current_node ?? conv.currentNode ?? ''
@@ -121,7 +126,7 @@ export async function parseConversations(
       // ── Step 1: Build children map for tree traversal ──────────────────────
       const children: Record<string, string[]> = {}
       for (const nodeId of Object.keys(mapping)) {
-        const parent = mapping[nodeId].parent
+        const parent = mapping[nodeId]?.parent
         if (parent) {
           if (!children[parent]) children[parent] = []
           children[parent].push(nodeId)
@@ -129,7 +134,7 @@ export async function parseConversations(
       }
 
       const roots = Object.keys(mapping).filter(
-        (id) => !mapping[id].parent || !mapping[mapping[id].parent]
+        (id) => !mapping[id]?.parent || !mapping[mapping[id].parent]
       )
 
       // ── Step 2: Find the active path by tracing current_node → root ─────────
@@ -282,7 +287,20 @@ export async function parseConversations(
         totalMessages++
         pushChildren(nodeId, depth)
       }
+  })
 
+  const importAll = db.transaction(() => {
+    wipeForImport()
+    for (let ci = 0; ci < rawConvs.length; ci++) {
+      const conv = rawConvs[ci]
+      if (!conv || typeof conv !== 'object') continue
+      try {
+        processConversation(conv, ci)
+      } catch (err: any) {
+        const convId = conv.id ?? conv.conversation_id ?? `conv_${ci}`
+        errors.push(`${convId}: ${err.message}`)
+        console.error(`[parser] import error for ${convId}:`, err.message)
+      }
       onProgress?.({ done: ci + 1, total: rawConvs.length, phase: 'parsing' })
     }
   })
@@ -297,6 +315,7 @@ export async function parseConversations(
     messages: totalMessages,
     skipped,
     durationMs: Date.now() - start,
+    errors: errors.length ? errors : undefined,
   }
 }
 
