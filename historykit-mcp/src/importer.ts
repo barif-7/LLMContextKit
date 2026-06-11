@@ -488,9 +488,11 @@ export function upsertConversations(
       (id) => !mapping[id]?.parent || !mapping[mapping[id].parent]
     )
 
+    // activePath doubles as the visited set: a parent-pointer cycle in a
+    // malformed export would otherwise loop forever and hang the daemon.
     const activePath = new Set<string>()
     let cursor = currentNode
-    while (cursor && mapping[cursor]) {
+    while (cursor && mapping[cursor] && !activePath.has(cursor)) {
       activePath.add(cursor)
       cursor = mapping[cursor].parent ?? ''
     }
@@ -498,7 +500,7 @@ export function upsertConversations(
     if (activePath.size === 0) {
       const leaves = Object.keys(mapping).filter((id) => !children[id]?.length)
       cursor = leaves[leaves.length - 1] ?? roots[roots.length - 1] ?? ''
-      while (cursor && mapping[cursor]) {
+      while (cursor && mapping[cursor] && !activePath.has(cursor)) {
         activePath.add(cursor)
         cursor = mapping[cursor].parent ?? ''
       }
@@ -525,8 +527,11 @@ export function upsertConversations(
     let convMessageCount = 0
     let pendingFileContentTargets: PendingFileContentTarget[] = []
 
+    const visited = new Set<string>()
     while (stack.length) {
       const { nodeId, depth, branchIndex } = stack.pop()!
+      if (visited.has(nodeId)) continue
+      visited.add(nodeId)
       const node = mapping[nodeId]
       if (!node) continue
 
