@@ -93,6 +93,18 @@ async function main() {
       db.exec(`DELETE FROM message_embeddings; DELETE FROM ${quoteIdentifier(config.vectorTable)};`)
       console.log('Cleared existing semantic embedding index.')
     } else {
+      // Re-imports delete message_embeddings rows but cannot touch the vec
+      // table (the Electron app does not load sqlite-vec), leaving orphaned
+      // vectors that consume KNN slots and collide with re-inserts. Purge
+      // them so vectors are always a subset of the metadata table.
+      const purged = db.prepare(`
+        DELETE FROM ${quoteIdentifier(config.vectorTable)}
+        WHERE message_id NOT IN (SELECT message_id FROM message_embeddings)
+      `).run().changes
+      if (purged > 0) {
+        console.log(`Purged ${purged} orphaned vector(s) left behind by conversation re-imports.`)
+      }
+
       const mismatch = db.prepare(`
         SELECT embedding_model, embedding_dim, COUNT(*) as n
         FROM message_embeddings
