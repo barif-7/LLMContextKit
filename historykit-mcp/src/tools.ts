@@ -795,8 +795,19 @@ async function semanticSearch(args: any, db: Database.Database): Promise<string>
 
   const candidateLimit = k * 3
   const ftsHits = ftsSearchRows(db, query, candidateLimit, { role, source, dateRange })
-  const queryVec = await ollamaEmbed(query)
-  const vecHits = vectorSearchRows(db, queryVec, candidateLimit, { role, source, dateRange, query })
+
+  // If Ollama is down or hung, degrade to FTS-only instead of failing the
+  // whole tool — keyword results are still useful to the agent.
+  let queryVec: Float32Array | null = null
+  let degradedReason: string | null = null
+  try {
+    queryVec = await ollamaEmbed(query)
+  } catch (err) {
+    degradedReason = err instanceof Error ? err.message : String(err)
+  }
+  const vecHits = queryVec
+    ? vectorSearchRows(db, queryVec, candidateLimit, { role, source, dateRange, query })
+    : []
 
   const scores = new Map<string, { score: number; hit: SearchHit; fts_rank?: number; vector_rank?: number; vector_distance?: number }>()
 
@@ -849,6 +860,10 @@ async function semanticSearch(args: any, db: Database.Database): Promise<string>
     k,
     date_range: dateRangeResponse(dateRange),
     indexed_messages: indexed,
+    ...(degradedReason ? {
+      semantic_degraded: true,
+      degraded_reason: `Vector search unavailable, returning FTS-only results: ${degradedReason}`,
+    } : {}),
     result_count: results.length,
     results,
     next_step: results.length > 0

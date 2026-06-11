@@ -6,6 +6,7 @@ export const DEFAULT_EMBED_MODEL = 'nomic-embed-text'
 export const DEFAULT_EMBED_DIMS = 768
 const OLLAMA_EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL ?? DEFAULT_EMBED_MODEL
 const OLLAMA_EMBED_DIMS = Number(process.env.OLLAMA_EMBED_DIMS ?? DEFAULT_EMBED_DIMS)
+const OLLAMA_EMBED_TIMEOUT_MS = Number(process.env.OLLAMA_EMBED_TIMEOUT_MS ?? 30_000)
 
 export type EmbeddingConfig = {
   model: string
@@ -59,11 +60,20 @@ export function float32Buffer(values: number[]): Float32Array {
 }
 
 export async function ollamaEmbed(prompt: string): Promise<Float32Array> {
-  const response = await fetch(OLLAMA_EMBEDDINGS_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: getEmbeddingConfig().model, prompt }),
-  })
+  let response: Response
+  try {
+    response = await fetch(OLLAMA_EMBEDDINGS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: getEmbeddingConfig().model, prompt }),
+      signal: AbortSignal.timeout(OLLAMA_EMBED_TIMEOUT_MS),
+    })
+  } catch (err) {
+    const detail = err instanceof Error && err.name === 'TimeoutError'
+      ? `timed out after ${OLLAMA_EMBED_TIMEOUT_MS}ms`
+      : err instanceof Error ? err.message : String(err)
+    throw new Error(`Ollama embeddings request to ${OLLAMA_EMBEDDINGS_URL} failed: ${detail}. Is Ollama running?`)
+  }
 
   if (!response.ok) {
     const body = await response.text()
