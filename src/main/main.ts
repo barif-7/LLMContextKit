@@ -9,7 +9,7 @@ import { parseClaudeConversations } from './parser-claude'
 import { detectFormat } from './format-detector'
 import { registerSyncIpc } from './sync'
 import { registerSearchIpc } from './search'
-import { nodeCommandPath } from './sync'
+import { nodeCommandPath, startBackgroundServices } from './sync'
 
 const isDev = process.env.NODE_ENV === 'development'
 
@@ -85,6 +85,11 @@ app.whenReady().then(() => {
   registerSyncIpc()
   registerSearchIpc()
   createWindow()
+
+  // Start the MCP HTTP server and sync infrastructure asynchronously in the
+  // background so first-launch users don't see a blocked UI.
+  startBackgroundServices()
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })

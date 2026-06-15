@@ -49,6 +49,7 @@ const DEFAULT_FLAGS: SyncFlags = {
 }
 
 let activeRun: { mode: SyncMode; startedAt: number } | null = null
+let httpServerReady: Promise<void> | null = null
 
 function getFlags(): SyncFlags {
   return {
@@ -169,7 +170,14 @@ async function waitForHistorykitHttpServer(timeoutMs = 10_000): Promise<void> {
   throw new Error(`HistoryKit HTTP server did not become ready: ${formatError(lastError)}`)
 }
 
-async function ensureHistorykitHttpServer(): Promise<void> {
+function ensureHistorykitHttpServer(): Promise<void> {
+  if (httpServerReady) return httpServerReady
+
+  httpServerReady = startHistorykitHttpServer()
+  return httpServerReady
+}
+
+async function startHistorykitHttpServer(): Promise<void> {
   try {
     await requestText(`${historykitHttpUrl()}/health`)
     return
@@ -194,25 +202,28 @@ async function ensureHistorykitHttpServer(): Promise<void> {
     isPackaged: app.isPackaged,
     scriptExists: fs.existsSync(scriptPath),
   })
-  
-  const child = spawn(nodeBin, [scriptPath], {
-    cwd: runtimeCwd(),
-    env: process.env,
-    detached: true,
-    stdio: 'ignore',
-  })
-  
-  child.on('error', (err) => {
-    console.error('[historykit-http] spawn error:', {
-      nodeBin,
-      scriptPath,
+
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(nodeBin, [scriptPath], {
       cwd: runtimeCwd(),
-      error: err.message,
+      env: process.env,
+      detached: true,
+      stdio: 'ignore',
     })
-    throw new Error(`Failed to spawn HistoryKit HTTP server: ${err.message} (nodeBin: ${nodeBin}, scriptPath: ${scriptPath}, cwd: ${runtimeCwd()})`)
+
+    child.on('error', (err) => {
+      console.error('[historykit-http] spawn error:', {
+        nodeBin,
+        scriptPath,
+        cwd: runtimeCwd(),
+        error: err.message,
+      })
+      reject(new Error(`Failed to spawn HistoryKit HTTP server: ${err.message} (nodeBin: ${nodeBin}, scriptPath: ${scriptPath}, cwd: ${runtimeCwd()})`))
+    })
+
+    child.unref()
+    resolve()
   })
-  
-  child.unref()
 
   await waitForHistorykitHttpServer()
 }
@@ -723,3 +734,16 @@ export function registerSyncIpc() {
 }
 
 export { formatError, nodeCommandPath, historykitHttpServerPath, nativeSyncScriptPath }
+
+/**
+ * Kick off the HTTP server and (optionally) the debug Chrome instance in the
+ * background at app startup.  Failures are logged but never thrown — the UI
+ * will surface them when the user actually tries to sync.
+ */
+export function startBackgroundServices(): void {
+  ensureHistorykitHttpServer().catch((err) => {
+    console.error('[historykit-bg] HTTP server failed to start:', formatError(err))
+    // Reset so the next sync attempt can retry.
+    httpServerReady = null
+  })
+}
