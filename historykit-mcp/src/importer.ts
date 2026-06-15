@@ -69,6 +69,30 @@ export interface ImportOptions {
 const CODE_FENCE_RE = /```(\w*)\r?\n?([\s\S]*?)```/g
 const URL_RE = /https?:\/\/[^\s<>"')\]},;]+/g
 
+function toUnixSeconds(value: unknown): number | null {
+  if (value == null || value === '') return null
+
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return null
+    return value > 1_000_000_000_000 ? value / 1000 : value
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return null
+
+    const numeric = Number(trimmed)
+    if (Number.isFinite(numeric)) {
+      return numeric > 1_000_000_000_000 ? numeric / 1000 : numeric
+    }
+
+    const parsed = Date.parse(trimmed)
+    return Number.isFinite(parsed) ? parsed / 1000 : null
+  }
+
+  return null
+}
+
 function extractLinks(text: string): LinkMeta[] {
   if (!text) return []
   const stripped = text.replace(CODE_FENCE_RE, '')
@@ -300,10 +324,10 @@ export function ensureFtsSchema(db: Database.Database): void {
 export function getKnownIds(db: Database.Database): Record<string, number | null> {
   const rows = db.prepare(
     "SELECT id, update_time FROM conversations WHERE source = 'chatgpt'"
-  ).all() as Array<{ id: string; update_time: number | null }>
+  ).all() as Array<{ id: string; update_time: unknown }>
   const result: Record<string, number | null> = {}
   for (const row of rows) {
-    result[row.id] = row.update_time
+    result[row.id] = toUnixSeconds(row.update_time)
   }
   return result
 }
@@ -442,10 +466,11 @@ export function upsertConversations(
     if (!convId) throw new Error('Conversation missing id')
 
     const existing = getConv.get(convId) as any
-    const incomingUpdateTime: number | null = conv.update_time ?? null
+    const existingUpdateTime = toUnixSeconds(existing?.update_time)
+    const incomingUpdateTime = toUnixSeconds(conv.update_time)
 
-    if (!options.force && existing && existing.update_time != null && incomingUpdateTime != null) {
-      if (existing.update_time >= incomingUpdateTime) {
+    if (!options.force && existing && existingUpdateTime != null && incomingUpdateTime != null) {
+      if (existingUpdateTime >= incomingUpdateTime) {
         result.skipped_count++
         return
       }
@@ -469,7 +494,7 @@ export function upsertConversations(
     upsertConv.run({
       id: convId,
       title: convTitle,
-      create_time: conv.create_time ?? null,
+      create_time: toUnixSeconds(conv.create_time),
       update_time: incomingUpdateTime,
       current_node: currentNode,
     })
@@ -574,6 +599,7 @@ export function upsertConversations(
       const wordCount = text ? text.split(/\s+/).filter(Boolean).length : 0
       const langs = [...new Set(codeBlocks.map((c) => c.lang).filter(Boolean))]
       const msgId = msg.id ?? nodeId
+      const msgCreateTime = toUnixSeconds(msg.create_time)
 
       insertMsg.run({
         id: msgId,
@@ -586,7 +612,7 @@ export function upsertConversations(
         has_image: hasImage ? 1 : 0,
         has_audio: hasAudio ? 1 : 0,
         code_langs: langs.length ? JSON.stringify(langs) : null,
-        create_time: msg.create_time ?? null,
+        create_time: msgCreateTime,
         model: msg.metadata?.model_slug ?? null,
         finish_reason: msg.metadata?.finish_details?.type ?? null,
         branch_index: branchIndex,
@@ -662,7 +688,7 @@ export function upsertConversations(
           message_id: msgId,
           conv_id: convId,
           text,
-          create_time: msg.create_time ?? null,
+          create_time: msgCreateTime,
         })
         result.memory_count++
       }

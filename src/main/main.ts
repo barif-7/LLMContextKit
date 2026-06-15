@@ -9,6 +9,7 @@ import { parseClaudeConversations } from './parser-claude'
 import { detectFormat } from './format-detector'
 import { registerSyncIpc } from './sync'
 import { registerSearchIpc } from './search'
+import { nodeCommandPath } from './sync'
 
 const isDev = process.env.NODE_ENV === 'development'
 
@@ -23,16 +24,6 @@ function mcpServerPath() {
 
 function historykitDbPath() {
   return path.join(app.getPath('userData'), 'historykit.db')
-}
-
-function nodeCommandPath() {
-  const configured = process.env.HISTORYKIT_NODE_BIN
-  if (configured) return configured
-
-  const node22Path = path.join(os.homedir(), '.nvm', 'versions', 'node', 'v22.22.3', 'bin', 'node')
-  if (fs.existsSync(node22Path)) return node22Path
-
-  return 'node'
 }
 
 function claudeConfigPath() {

@@ -13,7 +13,7 @@
     "dev": "concurrently -n main,vite,electron -c cyan,green,yellow \"npm run compile-main\" \"vite\" \"npm run electron-dev\"",
     "compile-main": "tsc --watch --preserveWatchOutput",
     "electron-dev": "wait-on dist-electron/main.js tcp:4173 && cross-env NODE_ENV=development electron .",
-    "build": "tsc && vite build && electron-builder",
+    "build": "npm run mcp:build && tsc && vite build && electron-builder",
     "build:renderer": "vite build",
     "preview": "vite preview"
   },
@@ -52,9 +52,8 @@
         "to": "scripts/sync-chatgpt-history.mjs"
       },
       {
-        "from": "historykit-mcp",
-        "to": "historykit-mcp",
-        "filter": ["dist/**/*", "package.json", "node_modules/**/*"]
+        "from": "historykit-mcp/dist",
+        "to": "historykit-mcp/dist"
       }
     ],
     "directories": { "output": "release" }

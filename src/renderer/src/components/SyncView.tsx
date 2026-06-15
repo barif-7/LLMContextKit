@@ -120,7 +120,7 @@ export function SyncView({ onSynced }: Props) {
       for (let attempt = 0; attempt < 90; attempt++) {
         if (cancelAuthPoll.current) return
         const status = await refreshAuthStatus()
-        if (status.authenticated) {
+        if (status.authenticated && status.hasAccessToken) {
           setMessage('ChatGPT is authenticated. Starting native sync...')
           setAuthBusy(false)
           await run('chatgpt-native')
@@ -244,9 +244,17 @@ export function SyncView({ onSynced }: Props) {
         </div>
         {message && <div className={styles.message}>{message}</div>}
         {flags.nativeChatGPT && authStatus && (
-          <div className={`${styles.authBox} ${authStatus.authenticated ? styles.authOk : ''}`}>
+          <div className={`${styles.authBox} ${authStatus.authenticated && authStatus.hasAccessToken ? styles.authOk : ''}`}>
             <div className={styles.authLine}>
-              <strong>{authStatus.authenticated ? 'Signed in' : authStatus.chromeReachable ? 'Waiting for sign-in' : 'Chrome not connected'}</strong>
+              <strong>
+                {authStatus.authenticated && authStatus.hasAccessToken
+                  ? 'Signed in'
+                  : authStatus.message.startsWith('DevTools error')
+                    ? 'Connection Error'
+                    : authStatus.chromeReachable
+                      ? 'Waiting for sign-in'
+                      : 'Chrome not connected'}
+              </strong>
               <span>Port {authStatus.debugPort}</span>
             </div>
             <p>{authStatus.message}</p>

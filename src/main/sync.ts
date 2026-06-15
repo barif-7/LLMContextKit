@@ -4,6 +4,7 @@ import { spawn } from 'child_process'
 import crypto from 'crypto'
 import fs from 'fs'
 import http from 'http'
+import os from 'os'
 import net from 'net'
 import path from 'path'
 
@@ -31,6 +32,7 @@ export interface ChatGPTAuthStatus {
   chromeReachable: boolean
   hasChatGPTTarget: boolean
   authenticated: boolean
+  hasAccessToken?: boolean
   title?: string
   url?: string
   message: string
@@ -64,6 +66,10 @@ function setFlags(patch: Partial<SyncFlags>): SyncFlags {
   return next
 }
 
+function formatError(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
+}
+
 function historykitHttpUrl() {
   return 'http://127.0.0.1:8765'
 }
@@ -81,6 +87,10 @@ function chromeDebugUrl(pathname: string) {
   return `http://127.0.0.1:${chromeDebugPort()}${pathname}`
 }
 
+function runtimeCwd() {
+  return app.isPackaged ? process.resourcesPath : app.getAppPath()
+}
+
 function nativeSyncScriptPath() {
   const devCandidate = path.join(app.getAppPath(), 'scripts', 'sync-chatgpt-history.mjs')
   const packagedCandidate = path.join(process.resourcesPath, 'scripts', 'sync-chatgpt-history.mjs')
@@ -89,7 +99,42 @@ function nativeSyncScriptPath() {
   return devCandidate
 }
 
+function nodeCommandPath() {
+  const configured = process.env.HISTORYKIT_NODE_BIN
+  if (configured) {
+    if (!fs.existsSync(configured)) {
+      throw new Error(`HISTORYKIT_NODE_BIN does not exist: ${configured}`)
+    }
+    if (!fs.statSync(configured).isFile()) {
+      throw new Error(`HISTORYKIT_NODE_BIN is not a file: ${configured}`)
+    }
+    return configured
+  }
+  const node22Path = path.join(
+    os.homedir(),
+    '.nvm',
+    'versions',
+    'node',
+    'v22.22.3',
+    'bin',
+    'node'
+  )
+  if (fs.existsSync(node22Path) && fs.statSync(node22Path).isFile()) {
+    return node22Path
+  }
+  return 'node'
+}
+
+function historykitHttpServerPath() {
+  const devCandidate = path.join(app.getAppPath(), 'historykit-mcp', 'dist', 'http_server.js')
+  const packagedCandidate = path.join(process.resourcesPath, 'historykit-mcp', 'dist', 'http_server.js')
+  if (fs.existsSync(devCandidate)) return devCandidate
+  if (fs.existsSync(packagedCandidate)) return packagedCandidate
+  return devCandidate
+}
+
 async function triggerExtensionSync(): Promise<SyncRunResult> {
+  await ensureHistorykitHttpServer()
   const res = await fetch(`${historykitHttpUrl()}/trigger-sync`, {
     method: 'POST',
   })
@@ -107,13 +152,89 @@ async function triggerExtensionSync(): Promise<SyncRunResult> {
   }
 }
 
+async function waitForHistorykitHttpServer(timeoutMs = 10_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  let lastError: unknown = null
+
+  while (Date.now() < deadline) {
+    try {
+      await requestText(`${historykitHttpUrl()}/health`)
+      return
+    } catch (err) {
+      lastError = err
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    }
+  }
+
+  throw new Error(`HistoryKit HTTP server did not become ready: ${formatError(lastError)}`)
+}
+
+async function ensureHistorykitHttpServer(): Promise<void> {
+  try {
+    await requestText(`${historykitHttpUrl()}/health`)
+    return
+  } catch {
+    // Start a local server if nothing is listening yet.
+  }
+
+  const scriptPath = historykitHttpServerPath()
+  if (!fs.existsSync(scriptPath)) {
+    throw new Error(
+      `HistoryKit HTTP server not found: ${scriptPath}. Build historykit-mcp first.`
+    )
+  }
+
+  const nodeBin = nodeCommandPath()
+  console.log('[historykit-http] spawning', {
+    nodeBin,
+    scriptPath,
+    cwd: runtimeCwd(),
+    resourcesPath: process.resourcesPath,
+    appPath: app.getAppPath(),
+    isPackaged: app.isPackaged,
+    scriptExists: fs.existsSync(scriptPath),
+  })
+  
+  const child = spawn(nodeBin, [scriptPath], {
+    cwd: runtimeCwd(),
+    env: process.env,
+    detached: true,
+    stdio: 'ignore',
+  })
+  
+  child.on('error', (err) => {
+    console.error('[historykit-http] spawn error:', {
+      nodeBin,
+      scriptPath,
+      cwd: runtimeCwd(),
+      error: err.message,
+    })
+    throw new Error(`Failed to spawn HistoryKit HTTP server: ${err.message} (nodeBin: ${nodeBin}, scriptPath: ${scriptPath}, cwd: ${runtimeCwd()})`)
+  })
+  
+  child.unref()
+
+  await waitForHistorykitHttpServer()
+}
+
 async function runNativeChatGPTSync(): Promise<SyncRunResult> {
+  await ensureHistorykitHttpServer()
+
+  const authStatus = await chatGPTAuthStatus()
+  if (!authStatus.authenticated || !authStatus.hasAccessToken) {
+    return {
+      ok: false,
+      mode: 'chatgpt-native',
+      message: `Cannot start native sync: ${authStatus.message}. Please ensure you are fully signed in to ChatGPT in the debug Chrome instance.`,
+    }
+  }
+
   const scriptPath = nativeSyncScriptPath()
   if (!fs.existsSync(scriptPath)) {
     throw new Error(`Native sync script not found: ${scriptPath}`)
   }
 
-  const nodeBin = process.env.HISTORYKIT_NODE_BIN || 'node'
+  const nodeBin = nodeCommandPath()
   const args = [
     scriptPath,
     '--debug-port',
@@ -122,9 +243,19 @@ async function runNativeChatGPTSync(): Promise<SyncRunResult> {
     historykitHttpUrl(),
   ]
 
+  console.log('[chatgpt-sync] spawning', {
+    nodeBin,
+    scriptPath,
+    cwd: runtimeCwd(),
+    resourcesPath: process.resourcesPath,
+    appPath: app.getAppPath(),
+    isPackaged: app.isPackaged,
+    scriptExists: fs.existsSync(scriptPath),
+  })
+
   return await new Promise<SyncRunResult>((resolve, reject) => {
     const child = spawn(nodeBin, args, {
-      cwd: app.getAppPath(),
+      cwd: runtimeCwd(),
       env: process.env,
       stdio: ['ignore', 'pipe', 'pipe'],
     })
@@ -142,7 +273,13 @@ async function runNativeChatGPTSync(): Promise<SyncRunResult> {
     })
 
     child.on('error', (err) => {
-      reject(new Error(`Failed to launch native sync: ${err.message}`))
+      console.error('[chatgpt-sync] spawn error:', {
+        nodeBin,
+        scriptPath,
+        cwd: runtimeCwd(),
+        error: err.message,
+      })
+      reject(new Error(`Failed to launch native sync: ${err.message} (nodeBin: ${nodeBin}, scriptPath: ${scriptPath}, cwd: ${runtimeCwd()})`))
     })
 
     child.on('close', (code) => {
@@ -254,7 +391,7 @@ async function connectDebugger(webSocketDebuggerUrl: string) {
   return { send, close }
 }
 
-async function openRawWebSocket(webSocketDebuggerUrl: string) {
+async function openRawWebSocket(webSocketDebuggerUrl: string, timeoutMs = 5000) {
   const wsUrl = new URL(webSocketDebuggerUrl)
   const host = wsUrl.hostname
   const port = Number(wsUrl.port || 80)
@@ -262,7 +399,7 @@ async function openRawWebSocket(webSocketDebuggerUrl: string) {
   const key = crypto.randomBytes(16).toString('base64')
   const socket = net.createConnection({ host, port })
 
-  await new Promise<void>((resolve, reject) => {
+  const connectPromise = new Promise<void>((resolve, reject) => {
     const onError = (err: Error) => reject(err)
     socket.once('error', onError)
     socket.once('connect', () => {
@@ -295,6 +432,15 @@ async function openRawWebSocket(webSocketDebuggerUrl: string) {
     }
     socket.on('data', onData)
   })
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => {
+      socket.destroy()
+      reject(new Error(`WebSocket connection to ${host}:${port} timed out after ${timeoutMs}ms`))
+    }, timeoutMs)
+  })
+
+  await Promise.race([connectPromise, timeoutPromise])
 
   const listeners = new Set<(message: string) => void>()
   let frameBuffer = Buffer.alloc(0)
@@ -375,13 +521,19 @@ function sendFrame(socket: net.Socket, payload: Buffer, opcode: number) {
   socket.write(Buffer.concat([header, mask, masked]))
 }
 
-async function pageEvaluate(send: (method: string, params?: Record<string, any>) => Promise<any>, fn: () => Promise<any>) {
-  const result = await send('Runtime.evaluate', {
+async function pageEvaluate(send: (method: string, params?: Record<string, any>) => Promise<any>, fn: () => Promise<any>, timeoutMs = 5000) {
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error(`Page evaluation timed out after ${timeoutMs}ms`)), timeoutMs)
+  })
+
+  const evalPromise = send('Runtime.evaluate', {
     expression: `(${fn.toString()})()`,
     awaitPromise: true,
     returnByValue: true,
     userGesture: true,
   })
+
+  const result = await Promise.race([evalPromise, timeoutPromise]) as any
 
   if (result.exceptionDetails) {
     const message = result.exceptionDetails.exception?.description
@@ -491,13 +643,15 @@ async function chatGPTAuthStatus(): Promise<ChatGPTAuthStatus> {
       const res = await fetch('/api/auth/session', { credentials: 'include' })
       if (!res.ok) return { ok: false, status: res.status }
       const data: any = await res.json()
-      return { ok: true, authenticated: Boolean(data?.accessToken || data?.user), user: data?.user?.email || data?.user?.name || null }
+      const hasToken = Boolean(data?.accessToken)
+      return { ok: true, authenticated: hasToken, hasAccessToken: hasToken, user: data?.user?.email || data?.user?.name || null }
     })
 
     if (session?.authenticated) {
       return {
         ...statusBase,
         authenticated: true,
+        hasAccessToken: session.hasAccessToken,
         message: session.user ? `Signed in as ${session.user}` : 'ChatGPT is authenticated',
       }
     }
@@ -505,13 +659,15 @@ async function chatGPTAuthStatus(): Promise<ChatGPTAuthStatus> {
     return {
       ...statusBase,
       authenticated: false,
+      hasAccessToken: session?.hasAccessToken ?? false,
       message: 'ChatGPT is open; finish signing in to continue',
     }
   } catch (err: any) {
     return {
       ...statusBase,
       authenticated: false,
-      message: 'Waiting for ChatGPT sign-in to complete',
+      hasAccessToken: false,
+      message: `DevTools error: ${formatError(err)}`,
     }
   } finally {
     await debuggerClient.close().catch(() => {})
@@ -565,3 +721,5 @@ export function registerSyncIpc() {
     return await runSync(mode)
   })
 }
+
+export { formatError, nodeCommandPath, historykitHttpServerPath, nativeSyncScriptPath }

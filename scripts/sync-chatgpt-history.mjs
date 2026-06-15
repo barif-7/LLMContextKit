@@ -105,6 +105,48 @@ function formatError(err) {
   return err instanceof Error ? err.message : String(err)
 }
 
+function toUnixSeconds(value) {
+  if (value == null || value === '') return null
+
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return null
+    return value > 1_000_000_000_000 ? value / 1000 : value
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return null
+
+    const numeric = Number(trimmed)
+    if (Number.isFinite(numeric)) {
+      return numeric > 1_000_000_000_000 ? numeric / 1000 : numeric
+    }
+
+    const parsed = Date.parse(trimmed)
+    return Number.isFinite(parsed) ? parsed / 1000 : null
+  }
+
+  return null
+}
+
+function normalizeConversationTimestamps(conv) {
+  if (!conv || typeof conv !== 'object') return conv
+
+  conv.create_time = toUnixSeconds(conv.create_time)
+  conv.update_time = toUnixSeconds(conv.update_time)
+
+  if (conv.mapping && typeof conv.mapping === 'object') {
+    for (const node of Object.values(conv.mapping)) {
+      const msg = node?.message
+      if (msg && typeof msg === 'object') {
+        msg.create_time = toUnixSeconds(msg.create_time)
+      }
+    }
+  }
+
+  return conv
+}
+
 async function fetchJson(url, options) {
   let res
   try {
@@ -252,17 +294,18 @@ async function main() {
       throw new Error(`Unsupported conversations file format: ${options.conversationsFile}`)
     }
 
+    const normalizedConversations = conversations.map(normalizeConversationTimestamps)
     const result = await fetchJson(`${options.importUrl}/import`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conversations, force: true }),
+      body: JSON.stringify({ conversations: normalizedConversations, force: true }),
     })
 
     console.log(
       JSON.stringify(
         {
           source: options.conversationsFile,
-          imported: conversations.length,
+          imported: normalizedConversations.length,
           new: Number(result.new_count || 0),
           updated: Number(result.updated_count || 0),
           skipped: Number(result.skipped_count || 0),
@@ -388,21 +431,77 @@ async function main() {
       return
     }
 
+    let newCount = 0
+    let changedCount = 0
+    let unknownTimestampCount = 0
+    let currentCount = 0
+
     const needsFetch = options.force ? summaries : summaries.filter((conv) => {
       const localTime = knownIds[conv.id]
-      if (localTime == null) return true
-      const remoteTime = Number(conv.update_time)
-      const localNumericTime = Number(localTime)
-      if (!Number.isFinite(remoteTime) || !Number.isFinite(localNumericTime)) return true
-      return remoteTime > localNumericTime
+      if (localTime == null) {
+        newCount++
+        return true
+      }
+
+      const remoteTime = toUnixSeconds(conv.update_time)
+      const localNumericTime = toUnixSeconds(localTime)
+      if (remoteTime == null || localNumericTime == null) {
+        unknownTimestampCount++
+        return true
+      }
+
+      if (remoteTime > localNumericTime) {
+        changedCount++
+        return true
+      }
+
+      currentCount++
+      return false
     })
 
     console.log(
       `[sync] listed ${summaries.length} conversations, ${needsFetch.length} need refresh, ${summaries.length - needsFetch.length} already current`
     )
+    if (!options.force) {
+      console.log(
+        `[sync] refresh plan: ${newCount} new, ${changedCount} changed, ${unknownTimestampCount} unknown timestamp, ${currentCount} current`
+      )
+    }
 
-    const fullConversations = []
-    let fetchErrors = 0
+    let totalImported = 0
+    let totalNew = 0
+    let totalUpdated = 0
+    let totalSkipped = summaries.length - needsFetch.length
+    let totalErrored = 0
+    let totalMessages = 0
+    let totalCodeBlocks = 0
+    let totalAttachments = 0
+    let totalFileContents = 0
+    let totalLinks = 0
+    let totalMemories = 0
+
+    async function importFetchedBatch(conversations) {
+      if (conversations.length === 0) return
+
+      const normalized = conversations.map(normalizeConversationTimestamps)
+      const result = await fetchJson(`${options.importUrl}/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversations: normalized, force: options.force }),
+      })
+
+      totalImported += normalized.length
+      totalNew += Number(result.new_count || 0)
+      totalUpdated += Number(result.updated_count || 0)
+      totalSkipped += Number(result.skipped_count || 0)
+      totalErrored += Number(result.errored_count || 0)
+      totalMessages += Number(result.message_count || 0)
+      totalCodeBlocks += Number(result.code_block_count || 0)
+      totalAttachments += Number(result.attachment_count || 0)
+      totalFileContents += Number(result.file_content_count || 0)
+      totalLinks += Number(result.link_count || 0)
+      totalMemories += Number(result.memory_count || 0)
+    }
 
     for (let i = 0; i < needsFetch.length; i += options.batchSize) {
       const batch = needsFetch.slice(i, i + options.batchSize)
@@ -459,17 +558,20 @@ async function main() {
         }
       )
 
+      const fetchedConversations = []
       for (const item of fetched) {
         if (item?.conversation) {
-          fullConversations.push(item.conversation)
+          fetchedConversations.push(item.conversation)
         } else {
-          fetchErrors += 1
+          totalErrored += 1
           console.error(`[sync] failed to fetch ${item?.id}: ${item?.error || 'unknown error'}`)
         }
       }
 
+      await importFetchedBatch(fetchedConversations)
+
       console.log(
-        `[sync] fetched ${Math.min(i + options.batchSize, needsFetch.length)}/${needsFetch.length} changed conversations`
+        `[sync] fetched ${Math.min(i + options.batchSize, needsFetch.length)}/${needsFetch.length} changed conversations, imported ${totalImported}`
       )
 
       if (i + options.batchSize < needsFetch.length) {
@@ -477,45 +579,10 @@ async function main() {
       }
     }
 
-    let totalNew = 0
-    let totalUpdated = 0
-    let totalSkipped = summaries.length - needsFetch.length
-    let totalErrored = fetchErrors
-    let totalMessages = 0
-    let totalCodeBlocks = 0
-    let totalAttachments = 0
-    let totalFileContents = 0
-    let totalLinks = 0
-    let totalMemories = 0
-
-    for (let i = 0; i < fullConversations.length; i += options.batchSize) {
-      const batch = fullConversations.slice(i, i + options.batchSize)
-      const result = await fetchJson(`${options.importUrl}/import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversations: batch, force: options.force }),
-      })
-
-      totalNew += Number(result.new_count || 0)
-      totalUpdated += Number(result.updated_count || 0)
-      totalSkipped += Number(result.skipped_count || 0)
-      totalErrored += Number(result.errored_count || 0)
-      totalMessages += Number(result.message_count || 0)
-      totalCodeBlocks += Number(result.code_block_count || 0)
-      totalAttachments += Number(result.attachment_count || 0)
-      totalFileContents += Number(result.file_content_count || 0)
-      totalLinks += Number(result.link_count || 0)
-      totalMemories += Number(result.memory_count || 0)
-
-      console.log(
-        `[sync] imported ${Math.min(i + options.batchSize, fullConversations.length)}/${fullConversations.length}`
-      )
-    }
-
     const summary = {
       listed: summaries.length,
       refreshed: needsFetch.length,
-      imported: fullConversations.length,
+      imported: totalImported,
       new: totalNew,
       updated: totalUpdated,
       skipped: totalSkipped,
