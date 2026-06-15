@@ -111,19 +111,54 @@ function nodeCommandPath() {
     }
     return configured
   }
-  const node22Path = path.join(
-    os.homedir(),
-    '.nvm',
-    'versions',
-    'node',
-    'v22.22.3',
-    'bin',
-    'node'
-  )
-  if (fs.existsSync(node22Path) && fs.statSync(node22Path).isFile()) {
-    return node22Path
-  }
+  const nvmNode = findNvmLtsNode()
+  if (nvmNode) return nvmNode
   return 'node'
+}
+
+/**
+ * Scan ~/.nvm/versions/node/ for an LTS major (22, 20, 18) and return the
+ * newest installed patch's `bin/node` path.  Returns null when nvm isn't
+ * installed or no LTS version is present.
+ */
+function findNvmLtsNode(): string | null {
+  const nvmRoot = path.join(os.homedir(), '.nvm', 'versions', 'node')
+  if (!fs.existsSync(nvmRoot)) return null
+
+  const LTS_MAJORS = [22, 20, 18]
+  let entries: string[]
+  try {
+    entries = fs.readdirSync(nvmRoot)
+  } catch {
+    return null
+  }
+
+  // Group installed versions by major, prefer newest LTS.
+  for (const major of LTS_MAJORS) {
+    const candidates = entries
+      .filter((d) => d.startsWith(`v${major}.`))
+      .sort((a, b) => compareSemver(b, a)) // descending — newest first
+
+    for (const version of candidates) {
+      const binPath = path.join(nvmRoot, version, 'bin', 'node')
+      if (fs.existsSync(binPath) && fs.statSync(binPath).isFile()) {
+        return binPath
+      }
+    }
+  }
+
+  return null
+}
+
+/** Simple semver comparator for 'vMAJOR.MINOR.PATCH' strings. */
+function compareSemver(a: string, b: string): number {
+  const pa = a.replace(/^v/, '').split('.').map(Number)
+  const pb = b.replace(/^v/, '').split('.').map(Number)
+  for (let i = 0; i < 3; i++) {
+    const diff = (pa[i] ?? 0) - (pb[i] ?? 0)
+    if (diff !== 0) return diff
+  }
+  return 0
 }
 
 function historykitHttpServerPath() {
@@ -733,7 +768,7 @@ export function registerSyncIpc() {
   })
 }
 
-export { formatError, nodeCommandPath, historykitHttpServerPath, nativeSyncScriptPath }
+export { formatError, nodeCommandPath, findNvmLtsNode, historykitHttpServerPath, nativeSyncScriptPath }
 
 /**
  * Kick off the HTTP server and (optionally) the debug Chrome instance in the
