@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "npm run build && node --test test/*.test.mjs",
+    "test": "npm run build && node scripts/run-tests.mjs",
     "start": "node dist/index.js",
     "dev": "tsc --watch",
     "http": "node dist/http_server.js",

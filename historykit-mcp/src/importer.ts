@@ -69,7 +69,7 @@ export interface ImportOptions {
 const CODE_FENCE_RE = /```(\w*)\r?\n?([\s\S]*?)```/g
 const URL_RE = /https?:\/\/[^\s<>"')\]},;]+/g
 
-function toUnixSeconds(value: unknown): number | null {
+export function toUnixSeconds(value: unknown): number | null {
   if (value == null || value === '') return null
 
   if (typeof value === 'number') {
