@@ -746,4 +746,11 @@ export function startBackgroundServices(): void {
     // Reset so the next sync attempt can retry.
     httpServerReady = null
   })
+
+  const flags = getFlags()
+  if (flags.nativeChatGPT) {
+    launchChromeDebug().catch((err) => {
+      console.error('[historykit-bg] Chrome debug launch failed:', formatError(err))
+    })
+  }
 }
