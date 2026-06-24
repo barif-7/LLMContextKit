@@ -1,0 +1,23 @@
+{
+  "uuid": "conv-att",
+  "name": "Chat with attachment",
+  "created_at": "2026-05-01T10:00:00Z",
+  "updated_at": "2026-05-01T10:05:00Z",
+  "chat_messages": [
+    {
+      "uuid": "a1",
+      "sender": "human",
+      "text": "See the attached file.",
+      "created_at": "2026-05-01T10:00:00Z",
+      "attachments": [
+        {
+          "id": "att-1",
+          "file_name": "report.txt",
+          "file_type": "text/plain",
+          "file_size": 1234,
+          "extracted_content": "Quarterly results were strong."
+        }
+      ]
+    }
+  ]
+}

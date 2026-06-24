@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('api', {
   listAttachments: (type: string) => ipcRenderer.invoke('attachments:list', type),
   listLinks: () => ipcRenderer.invoke('links:list'),
   listMemories: () => ipcRenderer.invoke('memories:list'),
+  claudeProjects: () => ipcRenderer.invoke('search:claudeProjects'),
   claudeDesignProjects: () => ipcRenderer.invoke('claude:designProjects'),
   claudeDesignFiles: (params: any) => ipcRenderer.invoke('claude:designFiles', params),
   claudeFileTree: (params: any) => ipcRenderer.invoke('claude:fileTree', params),

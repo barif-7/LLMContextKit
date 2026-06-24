@@ -29,6 +29,7 @@ declare global {
       listAttachments: (type: string) => Promise<any[]>
       listLinks: () => Promise<any[]>
       listMemories: () => Promise<any[]>
+      claudeProjects: () => Promise<Array<{ project_name: string; message_count: number }>>
       claudeDesignProjects: () => Promise<import('./App').ClaudeDesignProject[]>
       claudeDesignFiles: (params: {
         projectName?: string
@@ -88,6 +89,10 @@ declare global {
     activeBranchOnly?: boolean
     sort?: string
     source?: string
+    claudeKind?: string
+    projectName?: string
+    hasToolCall?: boolean
+    filePathContains?: string
     limit?: number
     offset?: number
   }

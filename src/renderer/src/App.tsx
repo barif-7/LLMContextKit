@@ -17,6 +17,7 @@ import styles from './App.module.css'
 export type SearchScope = 'messages' | 'code' | 'files'
 export type SortOrder = 'newest' | 'oldest' | 'longest' | 'relevance'
 export type SourceFilter = 'all' | 'chatgpt' | 'claude'
+export type ClaudeKindFilter = 'all' | 'conversations' | 'design_chat' | 'project' | 'memory'
 export type AppView = 'search' | 'browse' | 'claudeDesign' | 'claudeFiles' | 'profile' | 'sync' | 'mcp'
 
 export interface SearchFlags {
@@ -35,6 +36,8 @@ export interface ChatGPTAuthStatus {
   chromeReachable: boolean
   hasChatGPTTarget: boolean
   authenticated: boolean
+  hasAccessToken?: boolean
+  user?: string | null
   title?: string
   url?: string
   message: string
@@ -143,6 +146,9 @@ export default function App() {
   const [sort, setSort] = useState<SortOrder>('newest')
   const [activeBranchOnly, setActiveBranchOnly] = useState(true)
   const [source, setSource] = useState<SourceFilter>('all')
+  const [claudeKind, setClaudeKind] = useState<ClaudeKindFilter>('all')
+  const [claudeProject, setClaudeProject] = useState<string>('')
+  const [claudeProjects, setClaudeProjects] = useState<Array<{ project_name: string; message_count: number }>>([])
   const [view, setView] = useState<AppView>('search')
 
   const [selectedMsg, setSelectedMsg] = useState<Message | null>(null)
@@ -164,6 +170,7 @@ export default function App() {
   useEffect(() => {
     checkForData()
     window.api.searchFlags().then(setSearchFlags).catch(() => {})
+    window.api.claudeProjects().then(setClaudeProjects).catch(() => {})
   }, [])
 
   async function checkForData() {
@@ -181,7 +188,7 @@ export default function App() {
     setStats(s)
     setHasData(s.messages > 0)
     loadConversations()
-    doSearch({ q: query, sort, activeBranchOnly, source, convId: activeConvId })
+    doSearch({ q: query, sort, activeBranchOnly, source, claudeKind, claudeProject, convId: activeConvId })
   }
 
   async function loadConversations() {
@@ -193,7 +200,7 @@ export default function App() {
     setImportError(null)
     let path = filePath
     if (!path) {
-      path = await window.api.openFile()
+      path = (await window.api.openFile()) ?? undefined
       if (!path) return
     }
     setImporting(true)
@@ -205,7 +212,7 @@ export default function App() {
         const s = await window.api.stats()
         setStats(s)
         loadConversations()
-        doSearch({ q: query, sort, activeBranchOnly, source })
+        doSearch({ q: query, sort, activeBranchOnly, source, claudeKind, claudeProject })
       } else {
         setImportError(result.error || 'Import failed.')
       }
@@ -229,7 +236,7 @@ export default function App() {
         const s = await window.api.stats()
         setStats(s)
         loadConversations()
-        doSearch({ q: query, sort, activeBranchOnly, source })
+        doSearch({ q: query, sort, activeBranchOnly, source, claudeKind, claudeProject })
       } else {
         setImportError(result.error || 'Merge failed.')
       }
@@ -257,7 +264,8 @@ export default function App() {
 
   // Message search
   const doSearch = useCallback(async (params: {
-    q: string; sort: SortOrder; activeBranchOnly: boolean; source: SourceFilter; convId?: string | null
+    q: string; sort: SortOrder; activeBranchOnly: boolean; source: SourceFilter
+    claudeKind?: ClaudeKindFilter; claudeProject?: string; convId?: string | null
   }) => {
     const searchParams: any = {
       query: params.q || undefined,
@@ -266,6 +274,8 @@ export default function App() {
       source: params.source,
       convId: params.convId || undefined,
     }
+    if (params.claudeKind && params.claudeKind !== 'all') searchParams.claudeKind = params.claudeKind
+    if (params.claudeProject) searchParams.projectName = params.claudeProject
     const rows = await window.api.search(searchParams)
     setResults(rows)
   }, [])
@@ -287,9 +297,9 @@ export default function App() {
     setFileResults(rows)
   }, [])
 
-  function triggerSearch(overrides?: Partial<{ q: string; sort: SortOrder; activeBranchOnly: boolean; source: SourceFilter; convId: string | null }>) {
+  function triggerSearch(overrides?: Partial<{ q: string; sort: SortOrder; activeBranchOnly: boolean; source: SourceFilter; claudeKind: ClaudeKindFilter; claudeProject: string; convId: string | null }>) {
     clearTimeout(searchTimeout.current)
-    const params = { q: query, sort, activeBranchOnly, source, convId: activeConvId, ...overrides }
+    const params = { q: query, sort, activeBranchOnly, source, claudeKind, claudeProject, convId: activeConvId, ...overrides }
     searchTimeout.current = setTimeout(() => {
       if (searchScope === 'code') {
         doCodeSearch(params.q, selectedLang)
@@ -314,7 +324,7 @@ export default function App() {
     } else if (scope === 'files') {
       doFileSearch(query)
     } else {
-      doSearch({ q: query, sort, activeBranchOnly, source })
+      doSearch({ q: query, sort, activeBranchOnly, source, claudeKind, claudeProject })
     }
   }
 
@@ -330,7 +340,24 @@ export default function App() {
 
   function onSourceChange(s: SourceFilter) {
     setSource(s)
-    triggerSearch({ source: s })
+    // Claude-specific filters are meaningless for a ChatGPT-only view; clear them.
+    if (s === 'chatgpt') {
+      setClaudeKind('all')
+      setClaudeProject('')
+      triggerSearch({ source: s, claudeKind: 'all', claudeProject: '' })
+    } else {
+      triggerSearch({ source: s })
+    }
+  }
+
+  function onClaudeKindChange(k: ClaudeKindFilter) {
+    setClaudeKind(k)
+    triggerSearch({ claudeKind: k })
+  }
+
+  function onClaudeProjectChange(p: string) {
+    setClaudeProject(p)
+    triggerSearch({ claudeProject: p })
   }
 
   function onBranchToggle() {
@@ -429,6 +456,11 @@ export default function App() {
               onSortChange={onSortChange}
               source={source}
               onSourceChange={onSourceChange}
+              claudeKind={claudeKind}
+              onClaudeKindChange={onClaudeKindChange}
+              claudeProject={claudeProject}
+              onClaudeProjectChange={onClaudeProjectChange}
+              claudeProjects={claudeProjects}
               activeBranchOnly={activeBranchOnly}
               onBranchToggle={onBranchToggle}
               resultCount={searchScope === 'code' ? codeResults.length : searchScope === 'files' ? fileResults.length : results.length}

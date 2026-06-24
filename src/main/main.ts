@@ -5,8 +5,12 @@ import os from 'os'
 import { execFileSync } from 'child_process'
 import { initDB, getDB } from './db'
 import { parseConversations } from './parser'
-import { parseClaudeConversations } from './parser-claude'
-import { detectFormat } from './format-detector'
+import {
+  parseClaudeConversations,
+  importClaudeMemories,
+  importClaudeProjectDocs,
+} from './importers/claude'
+import { classifyExport, type ExportClassification } from './format-detector'
 import { registerSyncIpc } from './sync'
 import { registerSearchIpc } from './search'
 import { nodeCommandPath, startBackgroundServices } from './sync'
@@ -115,161 +119,63 @@ function collectJsonFiles(dir: string): string[] {
   return results
 }
 
-function isClaudeMemoriesExport(data: unknown): boolean {
-  return Array.isArray(data) && data.some((item: any) => typeof item?.conversations_memory === 'string')
+// Build an import manifest before writing anything: classify every JSON file
+// in the folder so we can report what was found and import in a deterministic
+// order (ChatGPT + main Claude conversations first, then projects/memories,
+// then individual design chats merged in).
+type ManifestKind =
+  | 'chatgpt.conversations'
+  | 'claude.conversations'
+  | 'claude.design_chat'
+  | 'claude.project'
+  | 'claude.memory'
+  | 'unknown'
+
+interface ManifestItem {
+  path: string
+  relPath: string
+  kind: ManifestKind
+  isMainFile: boolean
 }
 
-function isClaudeProjectExport(data: unknown): boolean {
-  return !!data && typeof data === 'object' && Array.isArray((data as any).docs)
+function manifestKind(c: ExportClassification): ManifestKind {
+  if (c.source === 'chatgpt') return 'chatgpt.conversations'
+  if (c.source === 'claude') return `claude.${c.kind}` as ManifestKind
+  return 'unknown'
 }
 
-function importClaudeMemories(data: unknown) {
-  if (!isClaudeMemoriesExport(data)) return { conversations: 0, messages: 0, skipped: 0 }
-  const db = getDB()
-  const rows = data as Array<{ conversations_memory?: string; account_uuid?: string }>
+// Import priority — lower runs first. Main conversation exports are imported as
+// authoritative (replace) before individual design chats are merged on top.
+const KIND_ORDER: Record<ManifestKind, number> = {
+  'chatgpt.conversations': 0,
+  'claude.conversations': 1,
+  'claude.project': 2,
+  'claude.memory': 3,
+  'claude.design_chat': 4,
+  unknown: 9,
+}
 
-  const insertConv = db.prepare(`
-    INSERT OR REPLACE INTO conversations (id, title, create_time, update_time, current_node, source)
-    VALUES (@id, @title, @create_time, @update_time, @current_node, 'claude')
-  `)
-  const insertMsg = db.prepare(`
-    INSERT OR REPLACE INTO messages
-      (id, conv_id, parent_id, role, text, word_count, has_code, has_image, has_audio,
-       code_langs, create_time, model, finish_reason, branch_index, is_active_branch, depth, source)
-    VALUES
-      (@id, @conv_id, NULL, 'system', @text, @word_count, 0, 0, 0,
-       NULL, @create_time, NULL, NULL, 0, 1, @depth, 'claude')
-  `)
-  const insertMemory = db.prepare(`
-    INSERT INTO memories (message_id, conv_id, text, create_time)
-    VALUES (@message_id, @conv_id, @text, @create_time)
-  `)
-
-  let messages = 0
-  let skipped = 0
-  const now = Date.now() / 1000
-
-  db.transaction(() => {
-    for (let i = 0; i < rows.length; i++) {
-      const text = rows[i]?.conversations_memory?.trim()
-      if (!text) {
-        skipped++
-        continue
-      }
-      const convId = `claude_memory_${rows[i].account_uuid ?? i}`
-      const msgId = `${convId}_${i}`
-      db.prepare(`DELETE FROM memories WHERE conv_id = ?`).run(convId)
-      db.prepare(`DELETE FROM messages WHERE conv_id = ?`).run(convId)
-      insertConv.run({
-        id: convId,
-        title: 'Claude Memories',
-        create_time: now,
-        update_time: now,
-        current_node: msgId,
-      })
-      insertMsg.run({
-        id: msgId,
-        conv_id: convId,
-        text,
-        word_count: text.split(/\s+/).filter(Boolean).length,
-        create_time: now,
-        depth: i,
-      })
-      insertMemory.run({ message_id: msgId, conv_id: convId, text, create_time: now })
-      messages++
+function buildImportManifest(folderPath: string, jsonFiles: string[]): { items: ManifestItem[]; errors: string[] } {
+  const items: ManifestItem[] = []
+  const errors: string[] = []
+  for (const filePath of jsonFiles) {
+    const relPath = path.relative(folderPath, filePath)
+    try {
+      const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'))
+      const kind = manifestKind(classifyExport(data))
+      items.push({ path: filePath, relPath, kind, isMainFile: path.basename(filePath) === 'conversations.json' })
+    } catch (err: any) {
+      errors.push(`${relPath}: ${err.message}`)
+      items.push({ path: filePath, relPath, kind: 'unknown', isMainFile: false })
     }
-  })()
-
-  db.exec(`INSERT INTO messages_fts(messages_fts) VALUES('rebuild')`)
-  return { conversations: messages > 0 ? 1 : 0, messages, skipped }
-}
-
-function importClaudeProjectDocs(data: unknown) {
-  if (!isClaudeProjectExport(data)) return { conversations: 0, messages: 0, skipped: 0 }
-  const db = getDB()
-  const project = data as any
-  const docs = project.docs as any[]
-  const convId = `claude_project_${project.uuid ?? project.name ?? 'unknown'}`
-  const projectName = project.name ?? 'Claude Project'
-  const createdAt = Date.parse(project.created_at) / 1000 || Date.now() / 1000
-  const updatedAt = Date.parse(project.updated_at) / 1000 || createdAt
-
-  const insertConv = db.prepare(`
-    INSERT OR REPLACE INTO conversations (id, title, create_time, update_time, current_node, source)
-    VALUES (@id, @title, @create_time, @update_time, @current_node, 'claude')
-  `)
-  const insertMsg = db.prepare(`
-    INSERT OR REPLACE INTO messages
-      (id, conv_id, parent_id, role, text, word_count, has_code, has_image, has_audio,
-       code_langs, create_time, model, finish_reason, branch_index, is_active_branch, depth, source)
-    VALUES
-      (@id, @conv_id, NULL, 'system', @text, @word_count, @has_code, 0, 0,
-       @code_langs, @create_time, NULL, NULL, 0, 1, @depth, 'claude')
-  `)
-  const insertAttachmentContent = db.prepare(`
-    INSERT INTO attachment_contents (message_id, file_name, file_type, file_size, content)
-    VALUES (@message_id, @file_name, @file_type, NULL, @content)
-  `)
-  const insertDesignFile = db.prepare(`
-    INSERT INTO claude_design_files
-      (conv_id, message_id, project_uuid, project_name, file_path, file_name, file_type, operation, source_kind, content, hidden, created_at)
-    VALUES
-      (@conv_id, @message_id, @project_uuid, @project_name, @file_path, @file_name, @file_type, 'project_doc', 'project_doc', @content, 0, @created_at)
-  `)
-
-  let messages = 0
-  let skipped = 0
-  db.transaction(() => {
-    db.prepare(`DELETE FROM attachment_contents WHERE message_id IN (SELECT id FROM messages WHERE conv_id = ?)`).run(convId)
-    db.prepare(`DELETE FROM claude_design_files WHERE conv_id = ?`).run(convId)
-    db.prepare(`DELETE FROM messages WHERE conv_id = ?`).run(convId)
-    const currentNode = docs.length ? `${convId}_${docs[docs.length - 1]?.uuid ?? docs.length - 1}` : ''
-    insertConv.run({
-      id: convId,
-      title: `Claude Project: ${projectName}`,
-      create_time: createdAt,
-      update_time: updatedAt,
-      current_node: currentNode,
-    })
-    docs.forEach((doc, i) => {
-      const content = typeof doc?.content === 'string' ? doc.content : ''
-      const fileName = doc?.filename ?? `project-doc-${i + 1}.md`
-      if (!content.trim()) {
-        skipped++
-        return
-      }
-      const msgId = `${convId}_${doc?.uuid ?? i}`
-      const fileType = fileName.includes('.') ? fileName.slice(fileName.lastIndexOf('.') + 1).toLowerCase() : 'md'
-      insertMsg.run({
-        id: msgId,
-        conv_id: convId,
-        text: content,
-        word_count: content.split(/\s+/).filter(Boolean).length,
-        has_code: /```/.test(content) ? 1 : 0,
-        code_langs: /```/.test(content) ? JSON.stringify(['markdown']) : null,
-        create_time: Date.parse(doc?.created_at) / 1000 || createdAt,
-        depth: i,
-      })
-      insertAttachmentContent.run({ message_id: msgId, file_name: fileName, file_type: fileType, content })
-      insertDesignFile.run({
-        conv_id: convId,
-        message_id: msgId,
-        project_uuid: project.uuid ?? null,
-        project_name: projectName,
-        file_path: fileName,
-        file_name: fileName,
-        file_type: fileType,
-        content,
-        created_at: Date.parse(doc?.created_at) / 1000 || createdAt,
-      })
-      messages++
-    })
-  })()
-
-  db.exec(`INSERT INTO messages_fts(messages_fts) VALUES('rebuild')`)
-  db.exec(`INSERT INTO attachment_contents_fts(attachment_contents_fts) VALUES('rebuild')`)
-  db.exec(`INSERT INTO claude_design_files_fts(claude_design_files_fts) VALUES('rebuild')`)
-  return { conversations: messages > 0 ? 1 : 0, messages, skipped }
+  }
+  items.sort((a, b) => {
+    const byKind = KIND_ORDER[a.kind] - KIND_ORDER[b.kind]
+    if (byKind !== 0) return byKind
+    // Within a kind, import the canonical conversations.json before single files.
+    return Number(b.isMainFile) - Number(a.isMainFile)
+  })
+  return { items, errors }
 }
 
 async function importFolder(folderPath: string) {
@@ -278,91 +184,62 @@ async function importFolder(folderPath: string) {
     return { ok: false, error: 'No JSON files found in folder.' }
   }
 
-  console.log(`[import:folder] found ${jsonFiles.length} JSON files in ${path.basename(folderPath)}`)
+  const { items, errors } = buildImportManifest(folderPath, jsonFiles)
+  const byKind = items.reduce<Record<string, number>>((acc, it) => {
+    acc[it.kind] = (acc[it.kind] || 0) + 1
+    return acc
+  }, {})
+  console.log(`[import:folder] manifest for ${path.basename(folderPath)}:`, byKind)
 
   let totalConvs = 0
   let totalMsgs = 0
   let totalSkipped = 0
   let filesProcessed = 0
   let filesSkipped = 0
-  const errors: string[] = []
 
-  // Separate the main conversations file (if any) from individual conversation files
-  // Import the main file first (full import), then merge individual files
-  const mainFile = jsonFiles.find((f) => path.basename(f) === 'conversations.json')
-  const otherFiles = jsonFiles.filter((f) => f !== mainFile)
+  const importable = items.filter((it) => it.kind !== 'unknown')
 
-  const onProgress = (progress: { done: number; total: number; phase: string }) => {
-    mainWindow?.webContents.send('import:progress', {
-      ...progress,
-      phase: `${progress.phase} (${filesProcessed + 1}/${jsonFiles.length} files)`,
-    })
-  }
-
-  // Import main conversations.json first (if present)
-  if (mainFile) {
-    try {
-      const raw = fs.readFileSync(mainFile, 'utf-8')
-      const data = JSON.parse(raw)
-      const format = detectFormat(data)
-      if (format !== 'unknown') {
-        console.log(`[import:folder] main file: ${path.basename(mainFile)} format=${format}`)
-        const result = format === 'chatgpt'
-          ? await parseConversations(data, onProgress)
-          : await parseClaudeConversations(data, onProgress)
-        totalConvs += result.conversations
-        totalMsgs += result.messages
-        totalSkipped += result.skipped
-        filesProcessed++
-      } else {
-        filesSkipped++
-      }
-    } catch (err: any) {
-      errors.push(`${path.basename(mainFile)}: ${err.message}`)
+  for (const item of importable) {
+    const onProgress = (progress: { done: number; total: number; phase: string }) => {
+      mainWindow?.webContents.send('import:progress', {
+        ...progress,
+        phase: `${progress.phase} (${filesProcessed + 1}/${importable.length} files)`,
+      })
     }
-  }
-
-  // Then merge individual files (design_chats, etc.)
-  for (const filePath of otherFiles) {
     try {
-      const raw = fs.readFileSync(filePath, 'utf-8')
-      const data = JSON.parse(raw)
-      if (isClaudeMemoriesExport(data)) {
-        console.log(`[import:folder] ${path.relative(folderPath, filePath)} format=claude-memories`)
-        const result = importClaudeMemories(data)
-        totalConvs += result.conversations
-        totalMsgs += result.messages
-        totalSkipped += result.skipped
-        filesProcessed++
-        continue
+      const data = JSON.parse(fs.readFileSync(item.path, 'utf-8'))
+      const ctx = { importedFrom: item.relPath }
+      console.log(`[import:folder] ${item.relPath} kind=${item.kind}`)
+      let result: { conversations: number; messages: number; skipped: number }
+      switch (item.kind) {
+        case 'chatgpt.conversations':
+          // The first/canonical file replaces; subsequent ChatGPT files merge.
+          result = await parseConversations(data, onProgress, { merge: !item.isMainFile })
+          break
+        case 'claude.memory':
+          result = importClaudeMemories(data, ctx)
+          break
+        case 'claude.project':
+          result = importClaudeProjectDocs(data, ctx)
+          break
+        case 'claude.conversations':
+        case 'claude.design_chat':
+          result = await parseClaudeConversations(data, onProgress, ctx)
+          break
+        default:
+          filesSkipped++
+          continue
       }
-      if (isClaudeProjectExport(data)) {
-        console.log(`[import:folder] ${path.relative(folderPath, filePath)} format=claude-project`)
-        const result = importClaudeProjectDocs(data)
-        totalConvs += result.conversations
-        totalMsgs += result.messages
-        totalSkipped += result.skipped
-        filesProcessed++
-        continue
-      }
-      const format = detectFormat(data)
-      if (format === 'unknown') {
-        filesSkipped++
-        continue
-      }
-
-      console.log(`[import:folder] ${path.relative(folderPath, filePath)} format=${format}`)
-      const result = format === 'chatgpt'
-        ? await parseConversations(data, onProgress, { merge: true })
-        : await parseClaudeConversations(data, onProgress)
       totalConvs += result.conversations
       totalMsgs += result.messages
       totalSkipped += result.skipped
       filesProcessed++
     } catch (err: any) {
-      errors.push(`${path.relative(folderPath, filePath)}: ${err.message}`)
+      errors.push(`${item.relPath}: ${err.message}`)
     }
   }
+
+  filesSkipped += items.length - importable.length
 
   console.log(`[import:folder] done: ${filesProcessed} files, ${totalConvs} conversations, ${totalMsgs} messages, ${filesSkipped} skipped`)
   if (errors.length) console.error(`[import:folder] errors:`, errors)
@@ -375,6 +252,7 @@ async function importFolder(folderPath: string) {
     skipped: totalSkipped,
     filesProcessed,
     filesSkipped,
+    manifest: byKind,
     errors: errors.length ? errors : undefined,
   }
 }
@@ -410,8 +288,8 @@ ipcMain.handle('import:file', async (_event, filePath: string) => {
 
     const raw = fs.readFileSync(filePath, 'utf-8')
     const data = JSON.parse(raw)
-    const format = detectFormat(data)
-    if (format === 'unknown') {
+    const classification = classifyExport(data)
+    if (classification.source === 'unknown') {
       return {
         ok: false,
         error: 'Unrecognized conversations.json format. Expected ChatGPT or Claude export.',
@@ -420,18 +298,27 @@ ipcMain.handle('import:file', async (_event, filePath: string) => {
 
     const isSingle = data && typeof data === 'object' && !Array.isArray(data)
       && typeof data.mapping === 'object' && !data.conversations
-    console.log(`[import] file=${path.basename(filePath)} format=${format} isSingle=${isSingle}`)
+    const kind = `${classification.source}.${classification.kind}`
+    console.log(`[import] file=${path.basename(filePath)} kind=${kind} isSingle=${isSingle}`)
 
     const onProgress = (progress: { done: number; total: number; phase: string }) => {
       mainWindow?.webContents.send('import:progress', progress)
     }
+    const ctx = { importedFrom: path.basename(filePath) }
 
-    const result = format === 'chatgpt'
-      ? await parseConversations(data, onProgress, { merge: isSingle })
-      : await parseClaudeConversations(data, onProgress)
+    let result: { conversations: number; messages: number; skipped: number }
+    if (classification.source === 'chatgpt') {
+      result = await parseConversations(data, onProgress, { merge: isSingle })
+    } else if (classification.kind === 'memory') {
+      result = importClaudeMemories(data, ctx)
+    } else if (classification.kind === 'project') {
+      result = importClaudeProjectDocs(data, ctx)
+    } else {
+      result = await parseClaudeConversations(data, onProgress, ctx)
+    }
 
     console.log(`[import] result: conversations=${result.conversations} messages=${result.messages} merged=${isSingle}`)
-    return { ok: true, format, merged: isSingle, ...result }
+    return { ok: true, format: classification.source, kind, merged: isSingle, ...result }
   } catch (err: any) {
     console.error(`[import] error:`, err.message)
     return { ok: false, error: err.message }
@@ -517,6 +404,28 @@ ipcMain.handle('search:query', async (_event, params: SearchParams) => {
   if (params.source && params.source !== 'all') {
     sql += ` AND m.source = ?`
     args.push(params.source)
+  }
+
+  // Claude-aware filters. message_metadata is 1:1 with Claude messages and
+  // claude_design_files is 1:many, so both are applied via EXISTS to keep the
+  // result grain at one row per message (and to leave ChatGPT rows untouched).
+  if (params.claudeKind && params.claudeKind !== 'all') {
+    sql += ` AND EXISTS (SELECT 1 FROM message_metadata mm WHERE mm.message_id = m.id AND mm.kind = ?)`
+    args.push(params.claudeKind)
+  }
+
+  if (params.projectName) {
+    sql += ` AND EXISTS (SELECT 1 FROM message_metadata mm WHERE mm.message_id = m.id AND mm.project_name = ?)`
+    args.push(params.projectName)
+  }
+
+  if (params.hasToolCall) {
+    sql += ` AND EXISTS (SELECT 1 FROM claude_design_files df WHERE df.message_id = m.id AND df.source_kind = 'tool_call')`
+  }
+
+  if (params.filePathContains) {
+    sql += ` AND EXISTS (SELECT 1 FROM claude_design_files df WHERE df.message_id = m.id AND df.file_path LIKE ? ESCAPE '\\')`
+    args.push(`%${params.filePathContains.replace(/[%_\\]/g, '\\$&')}%`)
   }
 
   if (params.hasCode) sql += ` AND m.has_code = 1`
@@ -720,6 +629,19 @@ ipcMain.handle('memories:list', async () => {
 
 // ── IPC: Claude Design Files ────────────────────────────────────────────────
 
+// Distinct Claude project names across all imported messages (not just design
+// files) — drives the Project filter dropdown in the search bar.
+ipcMain.handle('search:claudeProjects', async () => {
+  const db = getDB()
+  return db.prepare(`
+    SELECT project_name, COUNT(*) AS message_count
+    FROM message_metadata
+    WHERE project_name IS NOT NULL AND project_name <> ''
+    GROUP BY project_name
+    ORDER BY message_count DESC
+  `).all() as Array<{ project_name: string; message_count: number }>
+})
+
 ipcMain.handle('claude:designProjects', async () => {
   const db = getDB()
   return db.prepare(`
@@ -838,7 +760,7 @@ ipcMain.handle('shell:openExternal', (_event, url: string) => {
 ipcMain.handle('db:clear', async () => {
   const db = getDB()
   if (tableExists('message_embeddings')) db.exec(`DELETE FROM message_embeddings;`)
-  db.exec(`DELETE FROM claude_design_files; DELETE FROM attachment_contents; DELETE FROM code_blocks; DELETE FROM attachments; DELETE FROM links; DELETE FROM memories; DELETE FROM messages; DELETE FROM conversations;`)
+  db.exec(`DELETE FROM message_metadata; DELETE FROM claude_design_files; DELETE FROM attachment_contents; DELETE FROM code_blocks; DELETE FROM attachments; DELETE FROM links; DELETE FROM memories; DELETE FROM messages; DELETE FROM conversations;`)
   return { ok: true }
 })
 
@@ -922,6 +844,10 @@ interface SearchParams {
   activeBranchOnly?: boolean
   sort?: string
   source?: string
+  claudeKind?: string          // conversations | design_chat | project | memory | all
+  projectName?: string         // exact Claude project name
+  hasToolCall?: boolean        // message produced a Claude Design file/tool op
+  filePathContains?: string    // substring match on reconstructed file paths
   limit?: number
   offset?: number
 }
