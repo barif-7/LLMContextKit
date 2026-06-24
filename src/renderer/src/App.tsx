@@ -36,6 +36,8 @@ export interface ChatGPTAuthStatus {
   chromeReachable: boolean
   hasChatGPTTarget: boolean
   authenticated: boolean
+  hasAccessToken?: boolean
+  user?: string | null
   title?: string
   url?: string
   message: string
@@ -198,7 +200,7 @@ export default function App() {
     setImportError(null)
     let path = filePath
     if (!path) {
-      path = await window.api.openFile()
+      path = (await window.api.openFile()) ?? undefined
       if (!path) return
     }
     setImporting(true)
