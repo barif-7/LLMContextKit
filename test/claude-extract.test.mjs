@@ -36,6 +36,34 @@ test('extractMessageText: design_chat contentBlocks text + thinking', () => {
   assert.equal(extractMessageText(msg), 'reasoning\nanswer')
 })
 
+test('extractMessageText: design_chat tool_call + error blocks are not dropped', () => {
+  // Real design-chat assistant turns often have empty text/thinking and carry
+  // their payload in tool_call / error blocks. These must still produce text.
+  const msg = { content: { content: '', contentBlocks: [
+    { type: 'thinking', text: '' },
+    { type: 'tool_call', toolCall: { name: 'write_file', input: { content: '...' }, output: 'Wrote 11253 characters to styles.css' } },
+    { type: 'error', message: "You've hit your Claude Design usage limit" },
+  ] } }
+  const text = extractMessageText(msg)
+  assert.ok(text.includes('[write_file] Wrote 11253 characters to styles.css'), text)
+  assert.ok(text.includes('Claude Design usage limit'), text)
+})
+
+test('extractMessageText: tool_call with no output falls back to input preview', () => {
+  const msg = { content: { contentBlocks: [
+    { type: 'tool_call', toolCall: { name: 'questions_v2', input: { questions: ['scope?'] } } },
+  ] } }
+  const text = extractMessageText(msg)
+  assert.ok(text.startsWith('[questions_v2]'), text)
+  assert.ok(text.includes('scope?'), text)
+})
+
+test('extractMessageText: empty top-level text falls through to content', () => {
+  // conversations.json messages with empty text but populated content blocks.
+  const msg = { text: '', content: [{ type: 'text', text: 'real content' }] }
+  assert.equal(extractMessageText(msg), 'real content')
+})
+
 test('normalizeRole: human -> user, assistant -> assistant, role field, fallback', () => {
   assert.equal(normalizeRole({ sender: 'human' }), 'user')
   assert.equal(normalizeRole({ sender: 'assistant' }), 'assistant')

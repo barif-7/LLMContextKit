@@ -36,41 +36,73 @@ export interface ClaudeDesignFileRow {
   created_at: number | null
 }
 
+/** Render a single Claude content block to searchable text.
+ *
+ * Design-chat assistant turns frequently carry their entire payload in
+ * `tool_call` and `error` blocks (e.g. write_file, questions_v2, usage-limit
+ * errors) with empty `thinking`/`text` blocks. Ignoring those leaves the
+ * message stored with empty text — present in the thread but blank and
+ * invisible to full-text search. So we render tool calls and errors too. */
+function renderContentBlock(block: any): string {
+  if (typeof block === 'string') return block
+  if (!block || typeof block !== 'object') return ''
+  switch (block.type) {
+    case 'text':
+    case 'thinking':
+      return typeof block.text === 'string' ? block.text : ''
+    case 'tool_call':
+      return renderToolCall(block.toolCall)
+    case 'error':
+      return typeof block.message === 'string' ? block.message : ''
+    default:
+      // Unknown block: salvage a `text` field if one is present.
+      return typeof block.text === 'string' ? block.text : ''
+  }
+}
+
+function renderContentBlocks(blocks: any[]): string {
+  return blocks.map(renderContentBlock).filter((s) => s && s.trim()).join('\n')
+}
+
+/** Human-readable, searchable summary of a tool call. Prefer the tool's textual
+ * output (usually a concise human summary); fall back to a compact input
+ * preview so a call with no output still contributes searchable text. */
+function renderToolCall(tool: any): string {
+  if (!tool || typeof tool !== 'object') return ''
+  const name = typeof tool.name === 'string' && tool.name ? tool.name : 'tool'
+  const output = typeof tool.output === 'string' ? tool.output.trim() : ''
+  if (output) return `[${name}] ${output}`
+  if (tool.input && typeof tool.input === 'object') {
+    const preview = JSON.stringify(tool.input)
+    return `[${name}] ${preview.length > 280 ? preview.slice(0, 280) + '…' : preview}`
+  }
+  return `[${name}]`
+}
+
 /** Extract the textual content of a Claude message across export shapes. */
 export function extractMessageText(msg: any): string {
-  // conversations.json format: text is directly on the message
-  if (typeof msg?.text === 'string') return msg.text
+  // conversations.json format: text is directly on the message.
+  if (typeof msg?.text === 'string' && msg.text.trim()) return msg.text
 
-  // design_chats format: text is in content.content (string or content blocks)
   const content = msg?.content
-  if (!content) return ''
+  if (!content) return typeof msg?.text === 'string' ? msg.text : ''
 
   const parts: string[] = []
-  if (typeof content.content === 'string') parts.push(content.content)
 
-  if (Array.isArray(content.content)) {
-    parts.push(content.content
-      .map((block: any) => {
-        if (typeof block === 'string') return block
-        if (block?.type === 'text' && typeof block.text === 'string') return block.text
-        return ''
-      })
-      .filter(Boolean)
-      .join('\n'))
+  // conversations.json may also carry content blocks as a top-level array.
+  if (Array.isArray(content)) {
+    parts.push(renderContentBlocks(content))
+  } else if (typeof content === 'object') {
+    // design_chats format: text lives under content.content / content.contentBlocks.
+    if (typeof content.content === 'string') parts.push(content.content)
+    if (Array.isArray(content.content)) parts.push(renderContentBlocks(content.content))
+    if (Array.isArray(content.contentBlocks)) parts.push(renderContentBlocks(content.contentBlocks))
   }
 
-  if (Array.isArray(content.contentBlocks)) {
-    parts.push(content.contentBlocks
-      .map((block: any) => {
-        if (block?.type === 'text' && typeof block.text === 'string') return block.text
-        if (block?.type === 'thinking' && typeof block.text === 'string') return block.text
-        return ''
-      })
-      .filter(Boolean)
-      .join('\n'))
-  }
-
-  return parts.filter(Boolean).join('\n').trim()
+  const text = parts.filter((s) => s && s.trim()).join('\n').trim()
+  if (text) return text
+  // Last resort: a whitespace-only top-level text is better than nothing lost.
+  return typeof msg?.text === 'string' ? msg.text : ''
 }
 
 /** Normalise a Claude message sender/role into 'user' | 'assistant' | 'unknown'. */
