@@ -1,14 +1,16 @@
 # HistoryKit
 
-> Local ChatGPT conversation search. Fast, private, offline.
+> Local ChatGPT **and Claude** conversation search. Fast, private, offline.
 
-ChatGPT's built-in search is slow and misses most of what you've written. HistoryKit imports your `conversations.json` export, indexes everything into a local SQLite database with FTS5 full-text search, and gives you a Slack-style search experience that actually works.
+ChatGPT and Claude both ship slow, shallow search that misses most of what you've written. HistoryKit imports your exports — ChatGPT's `conversations.json` and every surface of a Claude export — indexes everything into a local SQLite database with FTS5 full-text search, and gives you a Slack-style search experience that actually works.
 
 ---
 
 ## Features
 
 - **Instant full-text search** — SQLite FTS5 with BM25 ranking and porter stemming
+- **ChatGPT + Claude** — both providers in one index, distinguishable by `source`
+- **Every Claude surface** — conversations, Claude Design chats, project docs, and memories
 - **All branches indexed** — every regenerated response is stored, not just the active path
 - **Code-aware** — filter by language, browse code blocks extracted from messages
 - **Image & multimodal support** — flags messages containing image/audio attachments
@@ -21,11 +23,11 @@ ChatGPT's built-in search is slow and misses most of what you've written. Histor
 
 ## Getting Started
 
-### 1. Export your ChatGPT data
+### 1. Export your data
 
-In ChatGPT: **Settings → Data Controls → Export data**
+**ChatGPT:** Settings → Data Controls → Export data. You'll receive an email with a `.zip`; inside is `conversations.json`.
 
-You'll receive an email with a `.zip`. Inside is `conversations.json`.
+**Claude:** Settings → Privacy → Export Data. The `.zip` contains several JSON files — HistoryKit understands all of them (see [Supported Claude exports](#supported-claude-exports)).
 
 ### 2. Install and run
 
@@ -34,7 +36,26 @@ npm install
 npm run dev
 ```
 
-Drop your `conversations.json` onto the app window. Import takes a few seconds even for large exports.
+Drop a single JSON file **or an entire export folder** onto the app window. The format is detected automatically — no need to tell it which provider it's from. Import takes a few seconds even for large exports.
+
+### Supported Claude exports
+
+A Claude export bundles multiple surfaces. HistoryKit imports each as first-class, searchable data:
+
+| Surface | Detected as | What's indexed |
+|---|---|---|
+| Conversations | `claude.conversations` | Messages, code blocks, links, attachments + extracted content |
+| Claude Design chats | `claude.design_chat` | Messages plus reconstructed file/tool operations (`write_file`, `str_replace_edit`, …) |
+| Project docs | `claude.project` | Each doc as searchable content, stored as a project file |
+| Memories | `claude.memory` | Saved memory text |
+
+When you drop a **folder**, HistoryKit first builds an *import manifest* — it classifies every JSON file and reports what it found before writing anything:
+
+```
+manifest: { 'claude.conversations': 1, 'claude.design_chat': 22, 'claude.project': 4, 'claude.memory': 1, unknown: 7 }
+```
+
+Files are then imported in a deterministic order (conversations → projects → memories → design chats) so individual files merge cleanly on top of the main export. Unrecognized JSON is skipped, not imported.
 
 ### 3. Build for macOS
 
@@ -44,6 +65,17 @@ npm run build
 
 Output is in `release/`. A `.dmg` and `.zip` are produced for distribution.
 
+### 4. Run the tests
+
+```bash
+npm test
+```
+
+This compiles with `tsc`, then runs the `node --test` suite against the pure
+format-detection and Claude-extraction modules using fixtures in
+`test/fixtures/` (ChatGPT + every Claude surface, including malformed input).
+These modules import no Electron/SQLite, so the suite runs under plain Node.
+
 ---
 
 ## Architecture
@@ -52,10 +84,16 @@ Output is in `release/`. A `.dmg` and `.zip` are produced for distribution.
 historykit/
 ├── src/
 │   ├── main/
-│   │   ├── main.ts       # Electron main process, IPC handlers
-│   │   ├── db.ts         # SQLite init, schema, FTS5 triggers
-│   │   ├── parser.ts     # conversations.json tree parser
-│   │   └── preload.ts    # Secure IPC bridge (contextBridge)
+│   │   ├── main.ts             # Electron main process, IPC, folder-import manifest
+│   │   ├── db.ts               # SQLite init, schema, FTS5 triggers
+│   │   ├── parser.ts           # ChatGPT conversations.json tree parser
+│   │   ├── parser-claude.ts    # Claude conversation / design-chat parser
+│   │   ├── format-detector.ts  # classifyExport() → (source, kind)
+│   │   ├── importers/
+│   │   │   ├── claude.ts        # Memories + project-docs importers, Claude entry point
+│   │   │   ├── claude-extract.ts# Tool-call → file reconstruction
+│   │   │   └── shared.ts        # Pure helpers (word count, code blocks, links, paths)
+│   │   └── preload.ts          # Secure IPC bridge (contextBridge)
 │   └── renderer/
 │       ├── index.html
 │       └── src/
@@ -92,7 +130,9 @@ The `conversations.json` format uses a **tree structure** in `mapping`, not a fl
 ### Database schema
 
 ```sql
-conversations (id, title, create_time, update_time, current_node)
+conversations (id, title, create_time, update_time, current_node,
+  source                -- 'chatgpt' | 'claude'
+)
 
 messages (
   id, conv_id, parent_id, role, text,
@@ -101,10 +141,26 @@ messages (
   create_time, model, finish_reason,
   branch_index,         -- sibling index among parent's children
   is_active_branch,     -- 1 if on the current_node path
-  depth                 -- distance from root
+  depth,                -- distance from root
+  source                -- 'chatgpt' | 'claude'
 )
 
 code_blocks (id, message_id, lang, code, position)
+
+-- Provider-specific provenance kept out of the core messages table so common
+-- search stays lean. One row per message that carries extra metadata.
+message_metadata (
+  message_id, provider, kind,   -- kind: conversations | design_chat | project | memory
+  model, stop_reason, tool_name,
+  project_uuid, project_name, artifact_id,
+  workspace_path, imported_from_file, created_at
+)
+
+-- Files reconstructed from Claude Design tool calls / project docs
+claude_design_files (
+  id, conv_id, message_id, project_uuid, project_name,
+  file_path, file_name, file_type, operation, source_kind, content, ...
+)
 
 messages_fts (FTS5 virtual table, content=messages, porter tokenizer)
 ```
@@ -113,7 +169,7 @@ messages_fts (FTS5 virtual table, content=messages, porter tokenizer)
 
 The search IPC handler builds a parameterized SQL query dynamically:
 - FTS match via subquery on `messages_fts` rowid
-- Filters: `conv_id`, `role`, `has_code`, `has_image`, `word_count > 300`, `is_active_branch`
+- Filters: `source` (chatgpt/claude), `conv_id`, `role`, `has_code`, `has_image`, `word_count > 300`, `is_active_branch`
 - Sort: `create_time DESC/ASC` or `word_count DESC`
 - Limit: 200 rows (UI shows up to 300 with a note)
 
