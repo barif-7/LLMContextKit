@@ -122,6 +122,27 @@ export function initDB() {
     );
     CREATE INDEX IF NOT EXISTS idx_att_content_msg ON attachment_contents(message_id);
 
+    -- Provider-specific message metadata kept out of the core messages table
+    -- so common search stays lean. One row per message that carries extra
+    -- provenance (provider, Claude project, source file, tool/artifact ids).
+    CREATE TABLE IF NOT EXISTS message_metadata (
+      message_id         TEXT PRIMARY KEY,
+      provider           TEXT NOT NULL,
+      kind               TEXT,
+      model              TEXT,
+      stop_reason        TEXT,
+      tool_name          TEXT,
+      project_uuid       TEXT,
+      project_name       TEXT,
+      artifact_id        TEXT,
+      workspace_path     TEXT,
+      imported_from_file TEXT,
+      created_at         REAL
+    );
+    CREATE INDEX IF NOT EXISTS idx_msg_meta_provider ON message_metadata(provider);
+    CREATE INDEX IF NOT EXISTS idx_msg_meta_kind     ON message_metadata(kind);
+    CREATE INDEX IF NOT EXISTS idx_msg_meta_project  ON message_metadata(project_name);
+
     CREATE TABLE IF NOT EXISTS claude_design_files (
       id             INTEGER PRIMARY KEY AUTOINCREMENT,
       conv_id        TEXT NOT NULL,

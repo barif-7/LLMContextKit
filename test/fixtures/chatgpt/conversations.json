@@ -1,0 +1,12 @@
+[
+  {
+    "title": "A ChatGPT conversation",
+    "create_time": 1735732800,
+    "update_time": 1735733000,
+    "current_node": "node-2",
+    "mapping": {
+      "node-1": { "id": "node-1", "message": { "author": { "role": "user" }, "content": { "parts": ["Hi"] } }, "parent": null, "children": ["node-2"] },
+      "node-2": { "id": "node-2", "message": { "author": { "role": "assistant" }, "content": { "parts": ["Hello there"] } }, "parent": "node-1", "children": [] }
+    }
+  }
+]
