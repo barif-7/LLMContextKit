@@ -1,4 +1,4 @@
-import type { SortOrder, SourceFilter, SearchScope } from '../App'
+import type { SortOrder, SourceFilter, ClaudeKindFilter, SearchScope } from '../App'
 import styles from './SearchBar.module.css'
 
 interface Props {
@@ -10,6 +10,11 @@ interface Props {
   onSortChange: (s: SortOrder) => void
   source: SourceFilter
   onSourceChange: (s: SourceFilter) => void
+  claudeKind: ClaudeKindFilter
+  onClaudeKindChange: (k: ClaudeKindFilter) => void
+  claudeProject: string
+  onClaudeProjectChange: (p: string) => void
+  claudeProjects: Array<{ project_name: string; message_count: number }>
   activeBranchOnly: boolean
   onBranchToggle: () => void
   resultCount: number
@@ -39,6 +44,11 @@ export function SearchBar({
   onSortChange,
   source,
   onSourceChange,
+  claudeKind,
+  onClaudeKindChange,
+  claudeProject,
+  onClaudeProjectChange,
+  claudeProjects,
   activeBranchOnly,
   onBranchToggle,
   resultCount,
@@ -141,6 +151,37 @@ export function SearchBar({
               <option value="chatgpt">ChatGPT</option>
               <option value="claude">Claude</option>
             </select>
+
+            {source !== 'chatgpt' && (
+              <select
+                className={styles.sortSelect}
+                value={claudeKind}
+                onChange={e => onClaudeKindChange(e.target.value as ClaudeKindFilter)}
+                title="Filter by Claude export type"
+              >
+                <option value="all">All Claude types</option>
+                <option value="conversations">Conversations</option>
+                <option value="design_chat">Design chats</option>
+                <option value="project">Project docs</option>
+                <option value="memory">Memories</option>
+              </select>
+            )}
+
+            {source !== 'chatgpt' && claudeProjects.length > 0 && (
+              <select
+                className={styles.sortSelect}
+                value={claudeProject}
+                onChange={e => onClaudeProjectChange(e.target.value)}
+                title="Filter by Claude project"
+              >
+                <option value="">All projects</option>
+                {claudeProjects.map(p => (
+                  <option key={p.project_name} value={p.project_name}>
+                    {p.project_name} ({p.message_count})
+                  </option>
+                ))}
+              </select>
+            )}
 
             <select
               className={styles.sortSelect}

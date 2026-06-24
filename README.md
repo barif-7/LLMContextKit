@@ -57,6 +57,15 @@ manifest: { 'claude.conversations': 1, 'claude.design_chat': 22, 'claude.project
 
 Files are then imported in a deterministic order (conversations → projects → memories → design chats) so individual files merge cleanly on top of the main export. Unrecognized JSON is skipped, not imported.
 
+### Searching Claude data
+
+In the **Messages** search, set **Source** to `Claude` (or `All`) to reveal Claude-aware filters:
+
+- **Claude type** — narrow to conversations, design chats, project docs, or memories
+- **Project** — scope results to a single Claude project (populated from imported data)
+
+The search backend (`search:query`) also accepts `hasToolCall` and `filePathContains`, which match messages that produced Claude Design file/tool operations — useful for recovering code context from Claude Design sessions (e.g. *"every message that wrote to `src/components`"*).
+
 ### 3. Build for macOS
 
 ```bash
@@ -170,6 +179,7 @@ messages_fts (FTS5 virtual table, content=messages, porter tokenizer)
 The search IPC handler builds a parameterized SQL query dynamically:
 - FTS match via subquery on `messages_fts` rowid
 - Filters: `source` (chatgpt/claude), `conv_id`, `role`, `has_code`, `has_image`, `word_count > 300`, `is_active_branch`
+- Claude-aware filters (via `EXISTS` so result grain stays one row per message): `claudeKind`, `projectName` (on `message_metadata`), `hasToolCall`, `filePathContains` (on `claude_design_files`)
 - Sort: `create_time DESC/ASC` or `word_count DESC`
 - Limit: 200 rows (UI shows up to 300 with a note)
 

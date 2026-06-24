@@ -406,6 +406,28 @@ ipcMain.handle('search:query', async (_event, params: SearchParams) => {
     args.push(params.source)
   }
 
+  // Claude-aware filters. message_metadata is 1:1 with Claude messages and
+  // claude_design_files is 1:many, so both are applied via EXISTS to keep the
+  // result grain at one row per message (and to leave ChatGPT rows untouched).
+  if (params.claudeKind && params.claudeKind !== 'all') {
+    sql += ` AND EXISTS (SELECT 1 FROM message_metadata mm WHERE mm.message_id = m.id AND mm.kind = ?)`
+    args.push(params.claudeKind)
+  }
+
+  if (params.projectName) {
+    sql += ` AND EXISTS (SELECT 1 FROM message_metadata mm WHERE mm.message_id = m.id AND mm.project_name = ?)`
+    args.push(params.projectName)
+  }
+
+  if (params.hasToolCall) {
+    sql += ` AND EXISTS (SELECT 1 FROM claude_design_files df WHERE df.message_id = m.id AND df.source_kind = 'tool_call')`
+  }
+
+  if (params.filePathContains) {
+    sql += ` AND EXISTS (SELECT 1 FROM claude_design_files df WHERE df.message_id = m.id AND df.file_path LIKE ? ESCAPE '\\')`
+    args.push(`%${params.filePathContains.replace(/[%_\\]/g, '\\$&')}%`)
+  }
+
   if (params.hasCode) sql += ` AND m.has_code = 1`
   if (params.hasImage) sql += ` AND m.has_image = 1`
   if (params.isLong) sql += ` AND m.word_count > 300`
@@ -606,6 +628,19 @@ ipcMain.handle('memories:list', async () => {
 })
 
 // ── IPC: Claude Design Files ────────────────────────────────────────────────
+
+// Distinct Claude project names across all imported messages (not just design
+// files) — drives the Project filter dropdown in the search bar.
+ipcMain.handle('search:claudeProjects', async () => {
+  const db = getDB()
+  return db.prepare(`
+    SELECT project_name, COUNT(*) AS message_count
+    FROM message_metadata
+    WHERE project_name IS NOT NULL AND project_name <> ''
+    GROUP BY project_name
+    ORDER BY message_count DESC
+  `).all() as Array<{ project_name: string; message_count: number }>
+})
 
 ipcMain.handle('claude:designProjects', async () => {
   const db = getDB()
@@ -809,6 +844,10 @@ interface SearchParams {
   activeBranchOnly?: boolean
   sort?: string
   source?: string
+  claudeKind?: string          // conversations | design_chat | project | memory | all
+  projectName?: string         // exact Claude project name
+  hasToolCall?: boolean        // message produced a Claude Design file/tool op
+  filePathContains?: string    // substring match on reconstructed file paths
   limit?: number
   offset?: number
 }
